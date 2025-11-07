@@ -1,0 +1,17 @@
+services:
+  db:
+    image: mysql:8
+    container_name: oficina-db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: oficina
+      MYSQL_USER: oficina
+      MYSQL_PASSWORD: oficina
+    ports:
+      - "3307:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    command: ["mysqld","--default-authentication-plugin=mysql_native_password"]
+volumes:
+  dbdata:
+    

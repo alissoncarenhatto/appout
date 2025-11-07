@@ -1,0 +1,42 @@
+# Node / NestJS
+node_modules/
+dist/
+.tmp/
+temp/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Env (nunca commitar segredos)
+.env
+.env.*
+!.env.example
+
+# Prisma
+prisma/dev.db
+prisma/dev.db-journal
+# Caso gere o client em .prisma
+.prisma/
+
+# Cobertura de testes
+coverage/
+
+# Cache de pacotes (se você NÃO quiser versionar o lock, deixe aqui;
+# se preferir versionar, REMOVA a linha do gerenciador que usa)
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Docker (se usar volumes locais)
+docker-data/
