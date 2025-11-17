@@ -29,4 +29,9 @@ export class CustomersController {
   remove(@Param('id') id: string) {
     return this.customersService.remove(BigInt(id));
   }
+
+  @Get(':id/vehicles')
+  vehicles(@Param('id') id: string) {
+    return this.customersService.vehiclesOfCustomer(id);
+  }
 }

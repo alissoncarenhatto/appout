@@ -25,16 +25,6 @@ model customer {
   workorder       workorder[]
 }
 
-model customervehicle {
-  customerId BigInt
-  vehicleId  BigInt
-  customer   customer @relation(fields: [customerId], references: [id], map: "CustomerVehicle_customerId_fkey")
-  vehicle    vehicle  @relation(fields: [vehicleId], references: [id], map: "CustomerVehicle_vehicleId_fkey")
-
-  @@id([customerId, vehicleId])
-  @@index([vehicleId], map: "CustomerVehicle_vehicleId_fkey")
-}
-
 model model {
   id      BigInt    @id @default(autoincrement())
   name    String
@@ -99,16 +89,24 @@ model vehicle {
   brandId BigInt?
   brand   brand?  @relation(fields: [brandId], references: [id], map: "Vehicle_brandId_fkey")
 
-  // 👇 ESTE AQUI FICA
   modelId BigInt?
   model   model?  @relation(fields: [modelId], references: [id], map: "Vehicle_modelId_fkey")
 
-  // ❌ e GARANTE que NÃO exista nada tipo:
-  // model       String?   <-- APAGA ISSO se estiver aí
-  // modelText   String?   <-- APAGA ISSO se estiver aí
-
   customervehicle customervehicle[]
   workorder       workorder[]
+
+  imageUrl String? @db.VarChar(512)
+}
+
+model customervehicle {
+  customerId BigInt
+  vehicleId  BigInt
+
+  customer customer @relation(fields: [customerId], references: [id], map: "CustomerVehicle_customerId_fkey")
+  vehicle  vehicle  @relation(fields: [vehicleId], references: [id], map: "CustomerVehicle_vehicleId_fkey")
+
+  @@id([customerId, vehicleId])
+  @@index([vehicleId], map: "CustomerVehicle_vehicleId_fkey")
 }
 
 model workorder {

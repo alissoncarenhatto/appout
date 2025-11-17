@@ -65,4 +65,23 @@ export class CustomersService {
       where: { id },
     });
   }
+
+  private toBigInt(id?: string | number | bigint | null): bigint | null {
+    if (id === null || id === undefined) return null;
+    if (typeof id === 'bigint') return id;
+    return BigInt(id);
+  }
+
+  async vehiclesOfCustomer(customerId: string | number | bigint) {
+    const cid = this.toBigInt(customerId)!;
+    const links = await this.prisma.customervehicle.findMany({
+      where: { customerId: cid },
+      include: {
+        vehicle: { include: { brand: true, model: true } },
+      },
+      orderBy: { vehicleId: 'desc' },
+    });
+
+    return links.map((l) => l.vehicle);
+  }
 }

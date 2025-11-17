@@ -1,122 +1,106 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
-import { PrismaService } from '../prisma/prisma.service'
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateVehicleDto } from './dto/create-vehicle.dto';
+import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 
 @Injectable()
 export class VehiclesService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
+  private toBigIntOrNull(v?: string | null) {
+    if (v == null) return null;
+    const s = String(v);
+    if (!s) return null;
+    return BigInt(s);
+  }
+
+  private async setOwnersInternal(vehicleId: bigint, customers?: string[]) {
+    await this.prisma.customervehicle.deleteMany({ where: { vehicleId } });
+    const ids = (customers ?? []).map(x => BigInt(String(x)));
+    if (!ids.length) return;
+    await this.prisma.customervehicle.createMany({
+      data: ids.map(customerId => ({ vehicleId, customerId })),
+      skipDuplicates: true,
+    });
+  }
+
+  async list() {
     return this.prisma.vehicle.findMany({
-      orderBy: { plate: 'asc' },
       include: {
         brand: true,
         model: true,
-        customervehicle: {
-          include: {
-            customer: true,
-          },
-        },
+        customervehicle: { include: { customer: true } },
       },
-    })
+      orderBy: { id: 'desc' },
+    });
   }
 
-  async findOne(id: string) {
-    const vehicle = await this.prisma.vehicle.findUnique({
-      where: { id: BigInt(id) },
+  async get(id: string) {
+    const vid = BigInt(id);
+    const found = await this.prisma.vehicle.findUnique({
+      where: { id: vid },
       include: {
         brand: true,
         model: true,
-        customervehicle: {
-          include: {
-            customer: true,
-          },
-        },
+        customervehicle: { include: { customer: true } },
       },
-    })
-    if (!vehicle) throw new NotFoundException('Veículo não encontrado')
-    return vehicle
+    });
+    if (!found) throw new NotFoundException('Vehicle not found');
+    return found;
   }
 
-  async create(dto: any) {
+  async create(dto: CreateVehicleDto) {
     const created = await this.prisma.vehicle.create({
       data: {
         plate: dto.plate,
+        brandId: this.toBigIntOrNull(dto.brandId),
+        modelId: this.toBigIntOrNull(dto.modelId),
         year: dto.year ?? null,
-        vin: dto.vin ?? null,
-        color: dto.color ?? null,
-        notes: dto.notes ?? null,
-        brandId: dto.brandId ? BigInt(dto.brandId) : null,
-        modelId: dto.modelId ? BigInt(dto.modelId) : null,
+        imageUrl: dto.imageUrl ?? null,
       },
-    })
+    });
 
-    if (dto.customerIds?.length) {
-      await this.saveOwners(created.id, dto.customerIds)
+    if (dto.customers?.length) {
+      await this.setOwnersInternal(created.id, dto.customers);
     }
 
-    return created
+    return this.get(String(created.id));
   }
 
-  async update(id: string, dto: any) {
-    const updated = await this.prisma.vehicle.update({
-      where: { id: BigInt(id) },
+  async update(id: string, dto: UpdateVehicleDto) {
+    const vid = BigInt(id);
+
+    await this.prisma.vehicle.update({
+      where: { id: vid },
       data: {
         plate: dto.plate,
-        year: typeof dto.year !== 'undefined' ? dto.year : undefined,
-        vin: typeof dto.vin !== 'undefined' ? dto.vin : undefined,
-        color: typeof dto.color !== 'undefined' ? dto.color : undefined,
-        notes: typeof dto.notes !== 'undefined' ? dto.notes : undefined,
-        brandId:
-          typeof dto.brandId !== 'undefined'
-            ? dto.brandId
-              ? BigInt(dto.brandId)
-              : null
-            : undefined,
-        modelId:
-          typeof dto.modelId !== 'undefined'
-            ? dto.modelId
-              ? BigInt(dto.modelId)
-              : null
-            : undefined,
+        brandId: dto.brandId !== undefined ? this.toBigIntOrNull(dto.brandId) : undefined,
+        modelId: dto.modelId !== undefined ? this.toBigIntOrNull(dto.modelId) : undefined,
+        year: dto.year !== undefined ? dto.year : undefined,
+        
+        imageUrl: dto.imageUrl !== undefined ? dto.imageUrl : undefined,
       },
-      include: {
-        brand: true,
-        model: true,
-        customervehicle: {
-          include: { customer: true },
-        },
-      },
-    })
+    });
 
-    if (dto.customerIds) {
-      await this.saveOwners(updated.id, dto.customerIds)
+    if (dto.customers) {
+      await this.setOwnersInternal(vid, dto.customers);
     }
 
-    return updated
+    return this.get(id);
   }
 
   async remove(id: string) {
-    await this.prisma.vehicle.delete({ where: { id: BigInt(id) } })
-    return { ok: true }
+    const vid = BigInt(id);
+    await this.prisma.customervehicle.deleteMany({ where: { vehicleId: vid } });
+    await this.prisma.workorder.deleteMany({ where: { vehicleId: vid } });
+    await this.prisma.vehicle.delete({ where: { id: vid } });
+    return { ok: true };
   }
 
-  async updateCustomers(id: string, customerIds: (string | number)[]) {
-    await this.saveOwners(BigInt(id), customerIds)
-    return { ok: true }
-  }
-
-  private async saveOwners(vehicleId: bigint, customerIds: (string | number)[]) {
-    await this.prisma.customervehicle.deleteMany({
-      where: { vehicleId },
-    })
-
-    if (!customerIds?.length) return
-
-    await this.prisma.customervehicle.createMany({
-      data: customerIds.map((cid) => ({
-        vehicleId,
-        customerId: BigInt(cid),
-      })),
-    })
+  async updateImageUrl(id: string, imageUrl: string) {
+    return this.prisma.vehicle.update({
+      where: { id: BigInt(id) },
+      data: { imageUrl },
+    });
   }
 }

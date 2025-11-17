@@ -1,30 +1,22 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 
 export class CreateVehicleDto {
   @IsString()
   @IsNotEmpty()
-  plate: string;
+  @MaxLength(20)
+  plate!: string;
+
+  @IsOptional() @IsString() brandId?: string | null;
+  @IsOptional() @IsString() modelId?: string | null;
+  @IsOptional() @IsInt()    year?: number | null;
+  @IsOptional() @IsString() model?: string | null;
 
   @IsOptional()
-  @IsString()
-  model?: string;
+  @IsArray()
+  @Type(() => String)
+  @IsString({ each: true })
+  customers?: string[];
 
-  @IsOptional()
-  year?: number;
-
-  @IsOptional()
-  @IsString()
-  vin?: string;
-
-  @IsOptional()
-  @IsString()
-  color?: string;
-
-  @IsOptional()
-  @IsString()
-  notes?: string;
-
-  @IsOptional()
-  @IsString()
-  brandId?: string;
+  @IsOptional() @IsString() imageUrl?: string | null; 
 }

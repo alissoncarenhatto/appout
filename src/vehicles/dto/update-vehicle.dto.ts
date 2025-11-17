@@ -1,30 +1,29 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsArray, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class UpdateVehicleDto {
-  @IsOptional()
-  @IsString()
+  @IsOptional() @IsString() @MaxLength(20)
   plate?: string;
 
-  @IsOptional()
-  @IsString()
-  model?: string;
+  @IsOptional() @IsString()
+  brandId?: string | null;
+
+  @IsOptional() @IsString()
+  modelId?: string | null;
+
+  @IsOptional() @IsInt()
+  year?: number | null;
+
+  @IsOptional() @IsString()
+  model?: string | null;
 
   @IsOptional()
-  year?: number;
+  @IsArray()
+  @Type(() => String)
+  @IsString({ each: true })
+  customers?: string[];
 
   @IsOptional()
   @IsString()
-  vin?: string;
-
-  @IsOptional()
-  @IsString()
-  color?: string;
-
-  @IsOptional()
-  @IsString()
-  notes?: string;
-
-  @IsOptional()
-  @IsString()
-  brandId?: string;
+  imageUrl?: string | null;
 }
