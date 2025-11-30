@@ -7,11 +7,36 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model tenant {
+  id        BigInt   @id @default(autoincrement())
+  name      String   @unique
+  code      String?  @unique
+  createdAt DateTime @default(now())
+
+  // relations (inverse fields)
+  users             user[]
+  brands            brand[]
+  models            model[]
+  customers         customer[]
+  vehicles          vehicle[]
+  parts             part[]
+  services          servicecatalog[]
+  workorders        workorder[]
+  workorderparts    workorderpart[]
+  workorderservices workorderservice[]
+}
+
 model brand {
   id      BigInt    @id @default(autoincrement())
-  name    String    @unique(map: "Brand_name_key")
+  name    String
   model   model[]
   vehicle vehicle[]
+
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
 }
 
 model customer {
@@ -23,28 +48,43 @@ model customer {
   notes           String?
   customervehicle customervehicle[]
   workorder       workorder[]
+
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }
 
 model model {
   id      BigInt    @id @default(autoincrement())
   name    String
   brandId BigInt
-  brand   brand     @relation(fields: [brandId], references: [id], map: "Model_brandId_fkey")
+  brand   brand     @relation(fields: [brandId], references: [id])
   vehicle vehicle[]
 
-  @@index([brandId], map: "Model_brandId_fkey")
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([brandId])
+  @@index([tenantId])
 }
 
 model part {
   id            BigInt          @id @default(autoincrement())
-  sku           String?         @unique
+  sku           String?
   name          String
-  description   String? // 👈 novo campo
+  description   String?
   price         Decimal         @default(0)
   cost          Decimal         @default(0)
   stockQty      Int             @default(0)
   active        Boolean         @default(true)
   workorderpart workorderpart[]
+
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, sku])
+  @@index([tenantId])
 }
 
 model payment {
@@ -53,65 +93,86 @@ model payment {
   method      payment_method
   amount      Decimal
   receivedAt  DateTime       @default(now())
-  workorder   workorder      @relation(fields: [workOrderId], references: [id], map: "Payment_workOrderId_fkey")
+  workorder   workorder      @relation(fields: [workOrderId], references: [id])
 
-  @@index([workOrderId], map: "Payment_workOrderId_fkey")
+  @@index([workOrderId])
 }
 
 model servicecatalog {
   id                 BigInt             @id @default(autoincrement())
   name               String
-  defaultPrice       Decimal            @default(0.000000000000000000000000000000)
+  defaultPrice       Decimal            @default(0)
   defaultDurationMin Int?               @default(60)
-  cost               Decimal            @default(0.000000000000000000000000000000)
+  cost               Decimal            @default(0)
   active             Boolean            @default(true)
   description        String?
   workorderservice   workorderservice[]
+
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
 }
 
 model user {
-  id           BigInt    @id @default(autoincrement())
+  id           BigInt   @id @default(autoincrement())
   name         String
-  email        String    @unique(map: "User_email_key")
+  email        String   @unique
   passwordHash String
-  role         user_role @default(STAFF)
-  createdAt    DateTime  @default(now())
+  createdAt    DateTime @default(now())
+
+  tenantId BigInt? // null => user global/admin
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  // FK para tabela de roles (Role)
+  roleId Int?
+  role   Role? @relation(fields: [roleId], references: [id])
+
+  @@index([tenantId])
 }
 
 model vehicle {
   id    BigInt  @id @default(autoincrement())
-  plate String  @unique
+  plate String
   year  Int?
   vin   String?
   color String?
   notes String?
 
   brandId BigInt?
-  brand   brand?  @relation(fields: [brandId], references: [id], map: "Vehicle_brandId_fkey")
+  brand   brand?  @relation(fields: [brandId], references: [id])
 
   modelId BigInt?
-  model   model?  @relation(fields: [modelId], references: [id], map: "Vehicle_modelId_fkey")
+  model   model?  @relation(fields: [modelId], references: [id])
 
   customervehicle customervehicle[]
   workorder       workorder[]
 
   imageUrl String? @db.VarChar(512)
+
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, plate])
+  @@index([tenantId])
+  @@index([modelId])
 }
 
 model customervehicle {
   customerId BigInt
   vehicleId  BigInt
 
-  customer customer @relation(fields: [customerId], references: [id], map: "CustomerVehicle_customerId_fkey")
-  vehicle  vehicle  @relation(fields: [vehicleId], references: [id], map: "CustomerVehicle_vehicleId_fkey")
+  customer customer @relation(fields: [customerId], references: [id])
+  vehicle  vehicle  @relation(fields: [vehicleId], references: [id])
 
   @@id([customerId, vehicleId])
-  @@index([vehicleId], map: "CustomerVehicle_vehicleId_fkey")
+  @@index([vehicleId])
 }
 
 model workorder {
   id               BigInt             @id @default(autoincrement())
-  number           String?            @unique(map: "WorkOrder_number_key")
+  number           String?
   customerId       BigInt
   vehicleId        BigInt
   status           workorder_status   @default(PENDING)
@@ -120,43 +181,62 @@ model workorder {
   finishedAt       DateTime?
   notes            String?
   payment          payment[]
-  customer         customer           @relation(fields: [customerId], references: [id], map: "WorkOrder_customerId_fkey")
-  vehicle          vehicle            @relation(fields: [vehicleId], references: [id], map: "WorkOrder_vehicleId_fkey")
+  customer         customer           @relation(fields: [customerId], references: [id])
+  vehicle          vehicle            @relation(fields: [vehicleId], references: [id])
   workorderpart    workorderpart[]
   workorderservice workorderservice[]
 
-  @@index([customerId], map: "WorkOrder_customerId_fkey")
-  @@index([vehicleId], map: "WorkOrder_vehicleId_fkey")
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([customerId])
+  @@index([vehicleId])
+  @@index([tenantId])
 }
 
 model workorderpart {
   id          BigInt    @id @default(autoincrement())
   workOrderId BigInt
   partId      BigInt
-  qty         Decimal   @default(1.000000000000000000000000000000)
-  unitPrice   Decimal   @default(0.000000000000000000000000000000)
-  unitCost    Decimal   @default(0.000000000000000000000000000000)
-  discount    Decimal   @default(0.000000000000000000000000000000)
-  part        part      @relation(fields: [partId], references: [id], map: "WorkOrderPart_partId_fkey")
-  workorder   workorder @relation(fields: [workOrderId], references: [id], map: "WorkOrderPart_workOrderId_fkey")
+  qty         Decimal   @default(1)
+  unitPrice   Decimal   @default(0)
+  unitCost    Decimal   @default(0)
+  discount    Decimal   @default(0)
+  part        part      @relation(fields: [partId], references: [id])
+  workorder   workorder @relation(fields: [workOrderId], references: [id])
 
-  @@index([partId], map: "WorkOrderPart_partId_fkey")
-  @@index([workOrderId], map: "WorkOrderPart_workOrderId_fkey")
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([partId])
+  @@index([workOrderId])
+  @@index([tenantId])
 }
 
 model workorderservice {
   id             BigInt         @id @default(autoincrement())
   workOrderId    BigInt
   serviceId      BigInt
-  qty            Decimal        @default(1.000000000000000000000000000000)
-  unitPrice      Decimal        @default(0.000000000000000000000000000000)
-  unitCost       Decimal        @default(0.000000000000000000000000000000)
-  discount       Decimal        @default(0.000000000000000000000000000000)
-  servicecatalog servicecatalog @relation(fields: [serviceId], references: [id], map: "WorkOrderService_serviceId_fkey")
-  workorder      workorder      @relation(fields: [workOrderId], references: [id], map: "WorkOrderService_workOrderId_fkey")
+  qty            Decimal        @default(1)
+  unitPrice      Decimal        @default(0)
+  unitCost       Decimal        @default(0)
+  discount       Decimal        @default(0)
+  servicecatalog servicecatalog @relation(fields: [serviceId], references: [id])
+  workorder      workorder      @relation(fields: [workOrderId], references: [id])
 
-  @@index([serviceId], map: "WorkOrderService_serviceId_fkey")
-  @@index([workOrderId], map: "WorkOrderService_workOrderId_fkey")
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([serviceId])
+  @@index([workOrderId])
+  @@index([tenantId])
+}
+
+model Role {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  users user[]
 }
 
 enum payment_method {
