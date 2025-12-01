@@ -13,32 +13,27 @@ export class AuthService {
   async validateUser(email: string, password: string) {
     const user = await this.prisma.user.findUnique({
       where: { email },
-      include: { role: true }
+      include: { role: true, tenant: true },
     });
 
-    if (!user) {
-      return null;
-    }
+    if (!user) return null;
 
     const passwordOk = await bcrypt.compare(password, user.passwordHash);
-    if (!passwordOk) {
-      return null;
-    }
+    if (!passwordOk) return null;
 
     return user;
   }
 
   async login(email: string, password: string) {
     const user = await this.validateUser(email, password);
-    if (!user) {
-      throw new UnauthorizedException('Credenciais inválidas');
-    }
+    if (!user) throw new UnauthorizedException('Credenciais inválidas');
 
     const payload = {
       sub: user.id.toString(),
       email: user.email,
       name: user.name,
       tenantId: user.tenantId ? user.tenantId.toString() : null,
+      tenantName: user.tenant?.name ?? null,
       role: user.role?.name ?? null,
     };
 
@@ -49,6 +44,7 @@ export class AuthService {
         name: user.name,
         email: user.email,
         tenantId: user.tenantId ? user.tenantId.toString() : null,
+        tenantName: user.tenant?.name ?? null,
         role: user.role?.name ?? null,
       },
     };

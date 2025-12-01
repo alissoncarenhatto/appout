@@ -37,6 +37,7 @@ import { TenantsModule } from './tenants/tenants.module';
     BrandsModule,
     ModelsModule,
     TenantsModule,
+    UsersModule,
 
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'uploads'),
