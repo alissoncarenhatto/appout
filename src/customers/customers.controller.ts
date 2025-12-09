@@ -1,37 +1,63 @@
-import { Controller, Get, Query, Post, Body, Param, Patch, Delete } from '@nestjs/common';
-import { CustomersService } from './customers.service';
+import {
+  Controller,
+  Get,
+  Query,
+  Post,
+  Body,
+  Param,
+  Patch,
+  Delete,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
+import { Request } from "express";
+import { CustomersService } from "./customers.service";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { UpdateCustomerDto } from "./dto/update-customer.dto";
+import { CreateCustomerDto } from "./dto/create-customer.dto";
 
-@Controller('customers')
+@Controller("customers")
+@UseGuards(JwtAuthGuard)
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Get()
-  findAll(@Query('search') search?: string) {
-    return this.customersService.findAll(search);
+  findAll(@Req() req: Request, @Query("q") q?: string) {
+    const user = req.user;
+    return this.customersService.findAll(user, q);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.customersService.findOne(BigInt(id));
+  @Get(":id")
+  findOne(@Req() req: Request, @Param("id") id: string) {
+    const user = req.user;
+    return this.customersService.findOne(user, BigInt(id));
   }
 
   @Post()
-  create(@Body() body: any) {
-    return this.customersService.create(body);
+  create(@Req() req: Request, @Body() body: CreateCustomerDto) {
+    const user = req.user;
+    return this.customersService.create(user, body);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() body: any) {
-    return this.customersService.update(BigInt(id), body);
+  @Patch(":id")
+  update(
+    @Req() req: Request,
+    @Param("id") id: string,
+    @Body() body: UpdateCustomerDto
+  ) {
+    const user = req.user;
+    return this.customersService.update(user, BigInt(id), body);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.customersService.remove(BigInt(id));
+  @Delete(":id")
+  remove(@Req() req: Request, @Param("id") id: string) {
+    const user = req.user;
+    return this.customersService.remove(user, BigInt(id));
   }
 
-  @Get(':id/vehicles')
-  vehicles(@Param('id') id: string) {
-    return this.customersService.vehiclesOfCustomer(id);
+  @Get(":id/vehicles")
+  vehicles(@Req() req: Request, @Param("id") id: string) {
+    const user = req.user;
+    return this.customersService.vehiclesOfCustomer(user, id);
   }
 }

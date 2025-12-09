@@ -1,30 +1,26 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsEmail } from "class-validator";
 
-export class CreateVehicleDto {
+export class CreateCustomerDto {
   @IsString()
   @IsNotEmpty()
-  plate: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
-  model?: string;
+  phone?: string;
 
   @IsOptional()
-  year?: number;
-
-  @IsOptional()
-  @IsString()
-  vin?: string;
+  @IsEmail()
+  email?: string;
 
   @IsOptional()
   @IsString()
-  color?: string;
+  document?: string;
 
   @IsOptional()
   @IsString()
   notes?: string;
 
   @IsOptional()
-  @IsString()
-  brandId?: string;
+  tenantId?: string | number | null;
 }

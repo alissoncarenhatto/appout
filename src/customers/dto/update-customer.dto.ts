@@ -1,30 +1,26 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsEmail } from "class-validator";
 
-export class UpdateVehicleDto {
+export class UpdateCustomerDto {
   @IsOptional()
   @IsString()
-  plate?: string;
-
-  @IsOptional()
-  @IsString()
-  model?: string;
-
-  @IsOptional()
-  year?: number;
+  name?: string;
 
   @IsOptional()
   @IsString()
-  vin?: string;
+  phone?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 
   @IsOptional()
   @IsString()
-  color?: string;
+  document?: string;
 
   @IsOptional()
   @IsString()
   notes?: string;
 
   @IsOptional()
-  @IsString()
-  brandId?: string;
+  tenantId?: string | number | null;
 }
