@@ -1,4 +1,4 @@
-import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class CreateServiceDto {
   @IsString()
@@ -10,7 +10,7 @@ export class CreateServiceDto {
 
   @IsOptional()
   @IsNumber()
-  durationMin?: number;
+  defaultDurationMin?: number;
 
   @IsOptional()
   @IsNumber()
@@ -23,4 +23,7 @@ export class CreateServiceDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  tenantId?: string | number | null;
 }
