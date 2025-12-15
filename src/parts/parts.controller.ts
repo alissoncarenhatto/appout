@@ -1,27 +1,50 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common'
-import { PartsService } from './parts.service'
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
+import { Request } from "express";
+import { PartsService } from "./parts.service";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { CreatePartDto } from "./dto/create-part.dto";
+import { UpdatePartDto } from "./dto/update-part.dto";
+import { AdjustStockDto } from "./dto/adjust-stock.dto";
 
-@Controller('parts')
+@Controller("parts")
+@UseGuards(JwtAuthGuard)
 export class PartsController {
   constructor(private service: PartsService) {}
 
   @Get()
-  list() {
-    return this.service.list()
+  list(@Req() req: Request) {
+    return this.service.list(req.user);
   }
 
   @Post()
-  create(@Body() body: any) {
-    return this.service.create(body)
+  create(@Req() req: Request, @Body() dto: CreatePartDto) {
+    return this.service.create(req.user, dto);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() body: any) {
-    return this.service.update(id, body)
+  @Patch(":id")
+  update(
+    @Req() req: Request,
+    @Param("id") id: string,
+    @Body() dto: UpdatePartDto
+  ) {
+    return this.service.update(req.user, id, dto);
   }
 
-  @Patch(':id/stock')
-  adjustStock(@Param('id') id: string, @Body() body: { delta: number }) {
-    return this.service.adjustStock(id, body.delta ?? 0)
+  @Patch(":id/stock")
+  adjustStock(
+    @Req() req: Request,
+    @Param("id") id: string,
+    @Body() dto: AdjustStockDto
+  ) {
+    return this.service.adjustStock(req.user, id, dto.delta);
   }
 }

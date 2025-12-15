@@ -1,20 +1,36 @@
-import { Injectable } from '@nestjs/common'
-import { PrismaService } from '../prisma/prisma.service'
+import { Injectable, ForbiddenException } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class PartsService {
   constructor(private prisma: PrismaService) {}
 
-  list() {
+  async list(user: any, q?: string) {
+    const where: any = {
+      active: true,
+    };
+
+    if (user?.tenantId) {
+      where.tenantId = BigInt(String(user.tenantId));
+    }
+
+    if (q) {
+      where.OR = [
+        { name: { contains: q, mode: "insensitive" } },
+        { sku: { contains: q, mode: "insensitive" } },
+      ];
+    }
+
     return this.prisma.part.findMany({
-      where: { active: true },
-      orderBy: { name: 'asc' },
-    })
+      where,
+      orderBy: { name: "asc" },
+    });
   }
 
-  create(data: any) {
+  create(user: any, data: any) {
     return this.prisma.part.create({
       data: {
+        tenantId: BigInt(user.tenantId),
         name: data.name,
         description: data.description ?? null,
         sku: data.sku ?? null,
@@ -23,10 +39,12 @@ export class PartsService {
         stockQty: data.stockQty ?? 0,
         active: data.active ?? true,
       },
-    })
+    });
   }
 
-  update(id: string, data: any) {
+  async update(user: any, id: string, data: any) {
+    await this.ensureTenantAccess(user, id);
+
     return this.prisma.part.update({
       where: { id: BigInt(id) },
       data: {
@@ -36,12 +54,14 @@ export class PartsService {
         price: data.price ?? 0,
         cost: data.cost ?? 0,
         stockQty: data.stockQty ?? 0,
-        active: typeof data.active === 'boolean' ? data.active : undefined,
+        active: typeof data.active === "boolean" ? data.active : undefined,
       },
-    })
+    });
   }
 
-  adjustStock(id: string, delta: number) {
+  async adjustStock(user: any, id: string, delta: number) {
+    await this.ensureTenantAccess(user, id);
+
     return this.prisma.part.update({
       where: { id: BigInt(id) },
       data: {
@@ -49,6 +69,17 @@ export class PartsService {
           increment: delta,
         },
       },
-    })
+    });
+  }
+
+  private async ensureTenantAccess(user: any, id: string) {
+    const part = await this.prisma.part.findUnique({
+      where: { id: BigInt(id) },
+      select: { tenantId: true },
+    });
+
+    if (!part || part.tenantId !== BigInt(user.tenantId)) {
+      throw new ForbiddenException("Access denied");
+    }
   }
 }
