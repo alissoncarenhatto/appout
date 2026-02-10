@@ -5,14 +5,20 @@ import { PrismaService } from "../prisma/prisma.service";
 export class PartsService {
   constructor(private prisma: PrismaService) {}
 
+  private toBigIntOrNull(v?: string | number | null) {
+    if (v == null) return null;
+    const s = String(v);
+    if (!s) return null;
+    return BigInt(s);
+  }
+
   async list(user: any, q?: string) {
+    const tenantId = user?.tenantId ?? null;
+
     const where: any = {
       active: true,
+      tenantId: this.toBigIntOrNull(tenantId),
     };
-
-    if (user?.tenantId) {
-      where.tenantId = BigInt(String(user.tenantId));
-    }
 
     if (q) {
       where.OR = [
@@ -28,9 +34,11 @@ export class PartsService {
   }
 
   create(user: any, data: any) {
+    const tenantId = user?.tenantId ?? null;
+
     return this.prisma.part.create({
       data: {
-        tenantId: BigInt(user.tenantId),
+        tenantId: this.toBigIntOrNull(tenantId),
         name: data.name,
         description: data.description ?? null,
         sku: data.sku ?? null,
@@ -48,12 +56,16 @@ export class PartsService {
     return this.prisma.part.update({
       where: { id: BigInt(id) },
       data: {
-        name: data.name,
-        description: data.description ?? null,
-        sku: data.sku ?? null,
-        price: data.price ?? 0,
-        cost: data.cost ?? 0,
-        stockQty: data.stockQty ?? 0,
+        name: data.name !== undefined ? data.name : undefined,
+        description:
+          data.description !== undefined
+            ? (data.description ?? null)
+            : undefined,
+        sku: data.sku !== undefined ? (data.sku ?? null) : undefined,
+        price: data.price !== undefined ? (data.price ?? 0) : undefined,
+        cost: data.cost !== undefined ? (data.cost ?? 0) : undefined,
+        stockQty:
+          data.stockQty !== undefined ? (data.stockQty ?? 0) : undefined,
         active: typeof data.active === "boolean" ? data.active : undefined,
       },
     });
@@ -78,7 +90,9 @@ export class PartsService {
       select: { tenantId: true },
     });
 
-    if (!part || part.tenantId !== BigInt(user.tenantId)) {
+    const tenantIdReq = user?.tenantId ?? null;
+
+    if (!part || String(part.tenantId) !== String(tenantIdReq)) {
       throw new ForbiddenException("Access denied");
     }
   }

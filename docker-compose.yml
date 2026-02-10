@@ -1,17 +1,16 @@
 services:
   db:
     image: mysql:8
-    container_name: oficina-db
+    container_name: appout-db
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: oficina
-      MYSQL_USER: oficina
-      MYSQL_PASSWORD: oficina
+      MYSQL_DATABASE: appout
+      MYSQL_USER: appout
+      MYSQL_PASSWORD: appout
     ports:
       - "3307:3306"
     volumes:
       - dbdata:/var/lib/mysql
-    command: ["mysqld","--default-authentication-plugin=mysql_native_password"]
+    command: ["mysqld", "--default-authentication-plugin=mysql_native_password"]
 volumes:
   dbdata:
-    

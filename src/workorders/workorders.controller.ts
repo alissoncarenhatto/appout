@@ -6,63 +6,70 @@ import {
   Patch,
   Post,
   Query,
-} from '@nestjs/common';
-import { WorkordersService } from './workorders.service';
+  Req,
+  UseGuards,
+} from "@nestjs/common";
+import { Request } from "express";
+import { WorkordersService } from "./workorders.service";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { ScheduleWorkorderDto } from "./dto/schedule-workorder.dto";
 
-@Controller('workorders')
+@UseGuards(JwtAuthGuard)
+@Controller("workorders")
 export class WorkordersController {
   constructor(private readonly service: WorkordersService) {}
 
   @Get()
-  findAll() {
-    return this.service.findAll();
-  }
-
-  @Get('range')
-  findByRange(@Query('from') from: string, @Query('to') to: string) {
-    return this.service.findByRange(from, to);
+  findAll(@Req() req: Request) {
+    return this.service.findAll(req.user);
   }
 
   @Post()
-  create(@Body() body: any) {
-    return this.service.create(body);
+  create(@Req() req: Request, @Body() body: any) {
+    return this.service.create(req.user, body);
   }
 
-  @Post(':id(\\d+)/services')
-  addService(@Param('id') id: string, @Body() body: any) {
-    return this.service.addService(id, body);
+  @Get(":id(\\d+)")
+  findOne(@Req() req: Request, @Param("id") id: string) {
+    return this.service.findOne(req.user, id);
   }
 
-  @Post(':id(\\d+)/parts')
-  addPart(@Param('id') id: string, @Body() body: any) {
-    return this.service.addPart(id, body);
+  @Patch(":id(\\d+)/start")
+  start(@Req() req: Request, @Param("id") id: string) {
+    return this.service.start(req.user, id);
   }
 
-  @Get(':id(\\d+)/totals')
-  totals(@Param('id') id: string) {
-    return this.service.totals(id);
+  @Patch(":id(\\d+)/finish")
+  finish(@Req() req: Request, @Param("id") id: string) {
+    return this.service.finish(req.user, id);
   }
 
-  @Patch(':id(\\d+)/start')
-  start(@Param('id') id: string) {
-    return this.service.start(id);
+  @Post(":id(\\d+)/services")
+  addService(@Req() req: Request, @Param("id") id: string, @Body() body: any) {
+    return this.service.addService(req.user, id, body);
   }
 
-  @Patch(':id(\\d+)/finish')
-  finish(@Param('id') id: string) {
-    return this.service.finish(id);
+  @Post(":id(\\d+)/parts")
+  addPart(@Req() req: Request, @Param("id") id: string, @Body() body: any) {
+    return this.service.addPart(req.user, id, body);
   }
 
-  @Patch(':id(\\d+)/schedule')
-  schedule(
-    @Param('id') id: string,
-    @Body() body: { scheduledAt: string | null },
+  @Get(":id(\\d+)/totals")
+  totals(@Req() req: Request, @Param("id") id: string) {
+    return this.service.totals(req.user, id);
+  }
+
+  @Get("range")
+  findByRange(
+    @Req() req,
+    @Query("from") from?: string,
+    @Query("to") to?: string
   ) {
-    return this.service.schedule(id, body);
+    return this.service.findByRange(req.user, from, to);
   }
 
-  @Get(':id(\\d+)')
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  @Post("schedule")
+  schedule(@Req() req: any, @Body() dto: ScheduleWorkorderDto) {
+    return this.service.schedule(req.user, dto);
   }
 }

@@ -1,6 +1,18 @@
+import { IsNumber, IsOptional } from "class-validator";
+
 export class AddPartDto {
-  partId!: number;
+  @IsNumber()
+  partId!: number | string;
+
+  @IsOptional()
+  @IsNumber()
   qty?: number;
+
+  @IsOptional()
+  @IsNumber()
   unitPrice?: number;
+
+  @IsOptional()
+  @IsNumber()
   discount?: number;
 }

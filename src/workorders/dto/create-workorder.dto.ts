@@ -1,5 +1,13 @@
+import { IsNumber, IsOptional, IsString } from "class-validator";
+
 export class CreateWorkorderDto {
-  customerId?: number;
-  vehicleId?: number;
+  @IsNumber()
+  customerId!: number | string;
+
+  @IsNumber()
+  vehicleId!: number | string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 }
