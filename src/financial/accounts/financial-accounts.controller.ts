@@ -8,9 +8,11 @@ import {
   Body,
   Req,
   UseGuards,
+  Query,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
 import { FinancialAccountsService } from "./financial-accounts.service";
+import { ListFinancialAccountDto } from "./dto/list-financial-account.dto";
 
 @Controller("financial-accounts")
 @UseGuards(JwtAuthGuard)
@@ -18,8 +20,8 @@ export class FinancialAccountsController {
   constructor(private service: FinancialAccountsService) {}
 
   @Get()
-  findAll(@Req() req: any) {
-    return this.service.findAll(req.user);
+  findAll(@Req() req: any, @Query() query: ListFinancialAccountDto) {
+    return this.service.findAll(req.user, query);
   }
 
   @Get(":id")

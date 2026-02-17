@@ -24,17 +24,38 @@ export class FinancialAccountsService {
     }
   }
 
-  async findAll(user: any) {
+  async findAll(user: any, query: any) {
+    const { q, page = 1, pageSize = 10 } = query;
+
     const where: any = {};
 
-    if (user?.role !== "SYSTEM_ADMIN") {
-      where.tenantId = this.toBigInt(user?.tenantId);
+    if (q && q.trim() !== "") {
+      where.name = {
+        contains: q.trim(),
+      };
     }
 
-    return this.prisma.financialAccount.findMany({
+    const role = (user?.role ?? "").toString();
+
+    if (role !== "SYSTEM_ADMIN") {
+      where.tenantId = user?.tenantId ? this.toBigInt(user.tenantId) : null;
+    }
+
+    const skip = (page - 1) * pageSize;
+
+    const total = await this.prisma.financialAccount.count({ where });
+
+    const items = await this.prisma.financialAccount.findMany({
       where,
+      skip,
+      take: pageSize,
       orderBy: { name: "asc" },
     });
+
+    return {
+      items,
+      total,
+    };
   }
 
   async findOne(user: any, id: bigint) {
