@@ -24,6 +24,10 @@ model tenant {
   workorders        workorder[]
   workorderparts    workorderpart[]
   workorderservices workorderservice[]
+
+  paymentMethods    PaymentMethod[]
+  financialAccounts FinancialAccount[]
+  financialEntries  FinancialEntry[]
 }
 
 model brand {
@@ -31,9 +35,6 @@ model brand {
   name    String
   model   model[]
   vehicle vehicle[]
-
-  tenantId BigInt?
-  tenant   tenant? @relation(fields: [tenantId], references: [id])
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -62,9 +63,6 @@ model model {
   brand   brand     @relation(fields: [brandId], references: [id])
   vehicle vehicle[]
 
-  tenantId BigInt?
-  tenant   tenant? @relation(fields: [tenantId], references: [id])
-
   @@index([brandId])
   @@index([tenantId])
 }
@@ -90,7 +88,8 @@ model part {
 model payment {
   id          BigInt         @id @default(autoincrement())
   workOrderId BigInt
-  method      payment_method
+  paymentMethodId BigInt
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
   amount      Decimal
   receivedAt  DateTime       @default(now())
   workorder   workorder      @relation(fields: [workOrderId], references: [id])
@@ -239,14 +238,6 @@ model Role {
   users user[]
 }
 
-enum payment_method {
-  CASH
-  CARD
-  PIX
-  TRANSFER
-  OTHER
-}
-
 enum workorder_status {
   PENDING
   IN_PROGRESS
@@ -257,4 +248,71 @@ enum workorder_status {
 enum user_role {
   ADMIN
   STAFF
+}
+
+model PaymentMethod {
+  id          BigInt   @id @default(autoincrement())
+  name        String
+  type        payment_type
+  active      Boolean  @default(true)
+  allowInstallments Boolean @default(false)
+  defaultInstallments Int? 
+  feePercent  Decimal? @default(0)
+  description String?
+
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  payments payment[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+enum payment_type {
+  CASH        // à vista
+  CREDIT      // cartão crédito
+  DEBIT       // cartão débito
+  PIX
+  BANK
+  EXCHANGE    // permuta
+  OTHER
+}
+
+model FinancialAccount {
+  id        BigInt  @id @default(autoincrement())
+  name      String
+  type      account_type
+  balance   Decimal @default(0)
+
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+enum account_type {
+  CASHBOX
+  BANK
+  CREDIT_CARD
+}
+
+model FinancialEntry {
+  id              BigInt  @id @default(autoincrement())
+  type            entry_type
+  description     String?
+  amount          Decimal
+  dueDate         DateTime
+  paidAt          DateTime?
+  paymentMethodId BigInt?
+
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+enum entry_type {
+  RECEIVABLE
+  PAYABLE
 }
