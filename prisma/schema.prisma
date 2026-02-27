@@ -36,6 +36,9 @@ model brand {
   model   model[]
   vehicle vehicle[]
 
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
   @@unique([tenantId, name])
   @@index([tenantId])
 }
@@ -62,6 +65,9 @@ model model {
   brandId BigInt
   brand   brand     @relation(fields: [brandId], references: [id])
   vehicle vehicle[]
+
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
 
   @@index([brandId])
   @@index([tenantId])
@@ -91,6 +97,7 @@ model payment {
   paymentMethodId BigInt
   paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
   amount      Decimal
+  installments Int?
   receivedAt  DateTime       @default(now())
   workorder   workorder      @relation(fields: [workOrderId], references: [id])
 
@@ -184,6 +191,8 @@ model workorder {
   vehicle          vehicle            @relation(fields: [vehicleId], references: [id])
   workorderpart    workorderpart[]
   workorderservice workorderservice[]
+  financialEntries FinancialEntry[]
+  discount         Decimal @default(0) 
 
   tenantId BigInt?
   tenant   tenant? @relation(fields: [tenantId], references: [id])
@@ -264,6 +273,7 @@ model PaymentMethod {
   tenant   tenant? @relation(fields: [tenantId], references: [id])
 
   payments payment[]
+  financialEntries FinancialEntry[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -304,7 +314,12 @@ model FinancialEntry {
   amount          Decimal
   dueDate         DateTime
   paidAt          DateTime?
+
+  workOrderId     BigInt?   // 👈 adicionar
+  workorder       workorder? @relation(fields: [workOrderId], references: [id])
+
   paymentMethodId BigInt?
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
 
   tenantId BigInt?
   tenant   tenant? @relation(fields: [tenantId], references: [id])

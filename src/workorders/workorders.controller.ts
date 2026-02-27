@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Delete,
   Query,
   Req,
   UseGuards,
@@ -27,6 +28,11 @@ export class WorkordersController {
   @Post()
   create(@Req() req: Request, @Body() body: any) {
     return this.service.create(req.user, body);
+  }
+
+  @Patch(":id(\\d+)")
+  update(@Req() req: Request, @Param("id") id: string, @Body() body: any) {
+    return this.service.update(req.user, id, body);
   }
 
   @Get(":id(\\d+)")
@@ -63,7 +69,7 @@ export class WorkordersController {
   findByRange(
     @Req() req,
     @Query("from") from?: string,
-    @Query("to") to?: string
+    @Query("to") to?: string,
   ) {
     return this.service.findByRange(req.user, from, to);
   }
@@ -71,5 +77,15 @@ export class WorkordersController {
   @Post("schedule")
   schedule(@Req() req: any, @Body() dto: ScheduleWorkorderDto) {
     return this.service.schedule(req.user, dto);
+  }
+
+  @Post(":id/pay")
+  pay(@Param("id") id: string, @Body() body: any, @Req() req: any) {
+    return this.service.pay(BigInt(id), body, req.user);
+  }
+
+  @Delete("payment/:paymentId")
+  removePayment(@Param("paymentId") paymentId: string, @Req() req: any) {
+    return this.service.removePayment(req.user, paymentId);
   }
 }

@@ -56,6 +56,11 @@ export class WorkordersService {
         vehicle: { include: { brand: true, model: true } },
         workorderpart: { include: { part: true } },
         workorderservice: { include: { servicecatalog: true } },
+        payment: {
+          include: {
+            paymentMethod: true,
+          },
+        },
       },
     });
 
@@ -197,7 +202,7 @@ export class WorkordersService {
     const unitCost = Number(svc.cost ?? 0);
     const discount = body.discount ?? 0;
 
-    return this.prisma.workorderservice.create({
+    const created = await this.prisma.workorderservice.create({
       data: {
         workOrderId: bid,
         serviceId: svcId,
@@ -206,7 +211,16 @@ export class WorkordersService {
         unitCost,
         discount,
       },
+      include: {
+        servicecatalog: true,
+      },
     });
+
+    return {
+      ...created,
+      name: created.servicecatalog?.name,
+      description: created.servicecatalog?.description,
+    };
   }
 
   async addPart(
@@ -237,7 +251,7 @@ export class WorkordersService {
     const unitCost = Number(part.cost ?? 0);
     const discount = body.discount ?? 0;
 
-    return this.prisma.workorderpart.create({
+    const created = this.prisma.workorderpart.create({
       data: {
         workOrderId: bid,
         partId,
@@ -246,7 +260,16 @@ export class WorkordersService {
         unitCost,
         discount,
       },
+
+      include: {
+        part: true,
+      },
     });
+
+    return {
+      ...created,
+      name: created.part?.name,
+    };
   }
 
   async totals(user: any, id: string | number | bigint) {
@@ -299,6 +322,116 @@ export class WorkordersService {
         vehicle: true,
       },
       orderBy: { scheduledAt: "asc" },
+    });
+  }
+
+  async pay(id: bigint, data: any, user: any) {
+    const workorder = await this.prisma.workorder.findUnique({
+      where: { id },
+    });
+
+    if (!workorder) throw new NotFoundException("OS not found");
+
+    const tenantId =
+      user?.role === "SYSTEM_ADMIN"
+        ? this.toBigIntOrNull(data.tenantId)
+        : this.toBigIntOrNull(user?.tenantId);
+
+    const payment = await this.prisma.payment.create({
+      data: {
+        workOrderId: id,
+        paymentMethodId: data.paymentMethodId,
+        amount: data.amount,
+      },
+    });
+
+    const entry = await this.prisma.financialEntry.create({
+      data: {
+        type: "RECEIVABLE",
+        description: `Pagamento OS #${id}`,
+        amount: data.amount,
+        dueDate: new Date(),
+        paidAt: new Date(),
+
+        workorder: {
+          connect: { id: id },
+        },
+
+        paymentMethod: {
+          connect: { id: this.toBigIntOrNull(data.paymentMethodId) },
+        },
+
+        tenant: {
+          connect: { id: this.toBigIntOrNull(user.tenantId) },
+        },
+      },
+    });
+
+    if (data.financialAccountId) {
+      await this.prisma.financialAccount.update({
+        where: { id: this.toBigIntOrNull(data.financialAccountId) },
+        data: {
+          balance: {
+            increment: data.amount,
+          },
+        },
+      });
+    }
+
+    return { payment, entry };
+  }
+
+  async removePayment(user: any, paymentId: string | number | bigint) {
+    const id = BigInt(paymentId);
+
+    const payment = await this.prisma.payment.findUnique({
+      where: { id },
+      include: {
+        workorder: true,
+      },
+    });
+
+    if (!payment) {
+      throw new NotFoundException("Payment not found");
+    }
+
+    await this.prisma.financialAccount.updateMany({
+      where: {},
+      data: {
+        balance: {
+          decrement: Number(payment.amount),
+        },
+      },
+    });
+
+    await this.prisma.financialEntry.deleteMany({
+      where: {
+        workOrderId: payment.workOrderId,
+        amount: payment.amount,
+      },
+    });
+
+    await this.prisma.payment.delete({
+      where: { id },
+    });
+
+    return { success: true };
+  }
+
+  async update(user: any, id: string, data: any) {
+    const bid = this.toBig(id);
+
+    await this.findOne(user, bid);
+
+    return this.prisma.workorder.update({
+      where: { id: bid },
+      data: {
+        customerId: data.customerId ? this.toBig(data.customerId) : undefined,
+        vehicleId: data.vehicleId ? this.toBig(data.vehicleId) : undefined,
+        notes: data.notes ?? undefined,
+        discount:
+          data.discount !== undefined ? Number(data.discount) : undefined,
+      },
     });
   }
 }
