@@ -1,7 +1,7 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import * as bcrypt from "bcrypt";
+import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class AuthService {
@@ -26,7 +26,7 @@ export class AuthService {
 
   async login(email: string, password: string) {
     const user = await this.validateUser(email, password);
-    if (!user) throw new UnauthorizedException('Credenciais inválidas');
+    if (!user) throw new UnauthorizedException("Credenciais inválidas");
 
     const payload = {
       sub: user.id.toString(),
@@ -46,6 +46,13 @@ export class AuthService {
         tenantId: user.tenantId ? user.tenantId.toString() : null,
         tenantName: user.tenant?.name ?? null,
         role: user.role?.name ?? null,
+        locale: user.locale,
+      },
+      tenant: {
+        id: user.tenant?.id?.toString() ?? null,
+        name: user.tenant?.name ?? null,
+        country: user.tenant?.country ?? null,
+        defaultLocale: user.tenant?.defaultLocale ?? null,
       },
     };
   }

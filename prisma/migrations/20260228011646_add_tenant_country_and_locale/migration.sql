@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE `tenant` ADD COLUMN `country` VARCHAR(191) NOT NULL DEFAULT 'BR',
+    ADD COLUMN `defaultLocale` VARCHAR(191) NOT NULL DEFAULT 'pt-BR';
+
+-- AlterTable
+ALTER TABLE `user` ADD COLUMN `locale` VARCHAR(191) NOT NULL DEFAULT 'pt-BR';

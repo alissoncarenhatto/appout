@@ -12,6 +12,8 @@ model tenant {
   name      String   @unique
   code      String?  @unique
   createdAt DateTime @default(now())
+  country String @default("BR")
+  defaultLocale String @default("pt-BR")
 
   // relations (inverse fields)
   users             user[]
@@ -127,6 +129,7 @@ model user {
   email        String   @unique
   passwordHash String
   createdAt    DateTime @default(now())
+  locale String @default("pt-BR")
 
   tenantId BigInt? // null => user global/admin
   tenant   tenant? @relation(fields: [tenantId], references: [id])
