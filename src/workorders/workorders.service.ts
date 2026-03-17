@@ -202,6 +202,8 @@ export class WorkordersService {
     const unitCost = Number(svc.cost ?? 0);
     const discount = body.discount ?? 0;
 
+    const tenantId = this.toBigIntOrNull(user?.tenantId);
+
     const created = await this.prisma.workorderservice.create({
       data: {
         workOrderId: bid,
@@ -210,6 +212,7 @@ export class WorkordersService {
         unitPrice,
         unitCost,
         discount,
+        tenantId,
       },
       include: {
         servicecatalog: true,
@@ -251,6 +254,8 @@ export class WorkordersService {
     const unitCost = Number(part.cost ?? 0);
     const discount = body.discount ?? 0;
 
+    const tenantId = this.toBigIntOrNull(user?.tenantId);
+
     const created = this.prisma.workorderpart.create({
       data: {
         workOrderId: bid,
@@ -259,6 +264,7 @@ export class WorkordersService {
         unitPrice,
         unitCost,
         discount,
+        tenantId,
       },
 
       include: {

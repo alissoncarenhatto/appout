@@ -1,29 +1,47 @@
 import {
-  IsEnum,
   IsOptional,
   IsString,
-  IsNumber,
+  IsEnum,
+  IsInt,
+  Min,
   IsDateString,
 } from "class-validator";
-import { entry_type } from "@prisma/client";
+import { Type } from "class-transformer";
 
-export class CreateFinancialEntryDto {
-  @IsEnum(entry_type)
-  type!: entry_type;
+export enum EntryType {
+  RECEIVABLE = "RECEIVABLE",
+  PAYABLE = "PAYABLE",
+}
 
-  @IsNumber()
-  amount!: number;
-
-  @IsDateString()
-  dueDate!: string;
-
+export class ListFinancialEntryDto {
   @IsOptional()
   @IsString()
-  description?: string;
+  q?: string;
 
   @IsOptional()
-  paymentMethodId?: string | number;
+  @IsEnum(EntryType)
+  type?: EntryType;
 
   @IsOptional()
-  tenantId?: string | number | null;
+  status?: "OPEN" | "PAID" | "OVERDUE";
+
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pageSize?: number = 10;
 }

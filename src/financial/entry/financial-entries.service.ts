@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
+import { ListFinancialEntryDto } from "./dto/list-financial-entry.dto";
 
 @Injectable()
 export class FinancialEntriesService {
@@ -24,8 +25,16 @@ export class FinancialEntriesService {
     }
   }
 
-  async findAll(user: any, query: any) {
-    const { q, type, status, page = 1, pageSize = 10 } = query;
+  async findAll(user: any, query: ListFinancialEntryDto) {
+    const {
+      q,
+      type,
+      status,
+      startDate,
+      endDate,
+      page = 1,
+      pageSize = 10,
+    } = query;
 
     const where: any = {};
 
@@ -47,22 +56,44 @@ export class FinancialEntriesService {
       where.paidAt = { not: null };
     }
 
+    if (status === "OVERDUE") {
+      where.paidAt = null;
+      where.dueDate = { lt: new Date() };
+    }
+
+    if (startDate || endDate) {
+      where.dueDate = {};
+
+      if (startDate) where.dueDate.gte = new Date(startDate);
+      if (endDate) where.dueDate.lte = new Date(endDate);
+    }
+
     if (user?.role !== "SYSTEM_ADMIN") {
       where.tenantId = this.toBigInt(user?.tenantId);
     }
 
     const skip = (page - 1) * pageSize;
 
-    const total = await this.prisma.financialEntry.count({ where });
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.financialEntry.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { dueDate: "desc" },
+        include: {
+          paymentMethod: true,
+          account: true,
+        },
+      }),
+      this.prisma.financialEntry.count({ where }),
+    ]);
 
-    const items = await this.prisma.financialEntry.findMany({
-      where,
-      skip,
-      take: pageSize,
-      orderBy: { dueDate: "desc" },
-    });
-
-    return { items, total };
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async findOne(user: any, id: bigint) {
@@ -89,9 +120,13 @@ export class FinancialEntriesService {
         description: data.description ?? null,
         amount: data.amount,
         dueDate: new Date(data.dueDate),
+
         paymentMethodId: data.paymentMethodId
           ? this.toBigInt(data.paymentMethodId)
           : null,
+
+        accountId: data.accountId ? this.toBigInt(data.accountId) : null,
+
         tenantId,
       },
     });
@@ -103,6 +138,7 @@ export class FinancialEntriesService {
     return this.prisma.financialEntry.update({
       where: { id },
       data: {
+        type: data.type ?? existing.type,
         description: data.description ?? existing.description,
         amount: data.amount ?? existing.amount,
         dueDate: data.dueDate ? new Date(data.dueDate) : existing.dueDate,
@@ -113,40 +149,64 @@ export class FinancialEntriesService {
   async pay(user: any, id: bigint, data: any) {
     const existing = await this.findOne(user, id);
 
-    if (existing.paidAt) throw new ForbiddenException("Already paid");
+    if (existing.paidAt) {
+      throw new ForbiddenException("Already paid");
+    }
 
-    if (data.accountId) {
-      const accountId = this.toBigInt(data.accountId);
+    const accountId = this.toBigInt(data.accountId);
 
-      const account = await this.prisma.financialAccount.findUnique({
+    if (!accountId) {
+      throw new ForbiddenException("Account required");
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const account = await tx.financialAccount.findUnique({
         where: { id: accountId },
       });
 
-      if (!account) throw new NotFoundException("Account not found");
+      if (!account) {
+        throw new NotFoundException("Account not found");
+      }
 
       const newBalance =
         existing.type === "RECEIVABLE"
           ? Number(account.balance) + Number(existing.amount)
           : Number(account.balance) - Number(existing.amount);
 
-      await this.prisma.financialAccount.update({
+      await tx.financialAccount.update({
         where: { id: accountId },
         data: { balance: newBalance },
       });
-    }
 
-    return this.prisma.financialEntry.update({
-      where: { id },
-      data: {
-        paidAt: new Date(),
-      },
+      await tx.financialTransaction.create({
+        data: {
+          amount: existing.amount,
+          type: existing.type === "RECEIVABLE" ? "CREDIT" : "DEBIT",
+          accountId: accountId,
+          entryId: existing.id,
+          tenantId: existing.tenantId,
+        },
+      });
+
+      return tx.financialEntry.update({
+        where: { id },
+        data: {
+          paidAt: new Date(),
+          accountId: accountId,
+          paymentMethodId: data.paymentMethodId
+            ? this.toBigInt(data.paymentMethodId)
+            : null,
+        },
+      });
     });
   }
 
   async remove(user: any, id: bigint) {
     await this.findOne(user, id);
 
-    await this.prisma.financialEntry.delete({ where: { id } });
+    await this.prisma.financialEntry.delete({
+      where: { id },
+    });
 
     return { ok: true };
   }

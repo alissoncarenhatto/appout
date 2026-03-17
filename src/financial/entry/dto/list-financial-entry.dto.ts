@@ -1,4 +1,11 @@
-import { IsOptional, IsString, IsEnum, IsInt, Min } from "class-validator";
+import {
+  IsOptional,
+  IsString,
+  IsEnum,
+  IsInt,
+  Min,
+  IsDateString,
+} from "class-validator";
 import { Type } from "class-transformer";
 
 export enum EntryType {
@@ -16,8 +23,15 @@ export class ListFinancialEntryDto {
   type?: EntryType;
 
   @IsOptional()
-  @IsString()
-  status?: "OPEN" | "PAID";
+  status?: "OPEN" | "PAID" | "OVERDUE";
+
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
 
   @IsOptional()
   @Type(() => Number)

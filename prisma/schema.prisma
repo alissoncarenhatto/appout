@@ -8,12 +8,12 @@ datasource db {
 }
 
 model tenant {
-  id        BigInt   @id @default(autoincrement())
-  name      String   @unique
-  code      String?  @unique
-  createdAt DateTime @default(now())
-  country String @default("BR")
-  defaultLocale String @default("pt-BR")
+  id            BigInt   @id @default(autoincrement())
+  name          String   @unique
+  code          String?  @unique
+  createdAt     DateTime @default(now())
+  country       String   @default("BR")
+  defaultLocale String   @default("pt-BR")
 
   // relations (inverse fields)
   users             user[]
@@ -27,9 +27,10 @@ model tenant {
   workorderparts    workorderpart[]
   workorderservices workorderservice[]
 
-  paymentMethods    PaymentMethod[]
-  financialAccounts FinancialAccount[]
-  financialEntries  FinancialEntry[]
+  paymentMethods       PaymentMethod[]
+  financialAccounts    FinancialAccount[]
+  financialEntries     FinancialEntry[]
+  FinancialTransaction FinancialTransaction[]
 }
 
 model brand {
@@ -94,14 +95,14 @@ model part {
 }
 
 model payment {
-  id          BigInt         @id @default(autoincrement())
-  workOrderId BigInt
+  id              BigInt        @id @default(autoincrement())
+  workOrderId     BigInt
   paymentMethodId BigInt
   paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
-  amount      Decimal
-  installments Int?
-  receivedAt  DateTime       @default(now())
-  workorder   workorder      @relation(fields: [workOrderId], references: [id])
+  amount          Decimal
+  installments    Int?
+  receivedAt      DateTime      @default(now())
+  workorder       workorder     @relation(fields: [workOrderId], references: [id])
 
   @@index([workOrderId])
 }
@@ -129,7 +130,7 @@ model user {
   email        String   @unique
   passwordHash String
   createdAt    DateTime @default(now())
-  locale String @default("pt-BR")
+  locale       String   @default("pt-BR")
 
   tenantId BigInt? // null => user global/admin
   tenant   tenant? @relation(fields: [tenantId], references: [id])
@@ -195,7 +196,7 @@ model workorder {
   workorderpart    workorderpart[]
   workorderservice workorderservice[]
   financialEntries FinancialEntry[]
-  discount         Decimal @default(0) 
+  discount         Decimal            @default(0)
 
   tenantId BigInt?
   tenant   tenant? @relation(fields: [tenantId], references: [id])
@@ -263,19 +264,19 @@ enum user_role {
 }
 
 model PaymentMethod {
-  id          BigInt   @id @default(autoincrement())
-  name        String
-  type        payment_type
-  active      Boolean  @default(true)
-  allowInstallments Boolean @default(false)
-  defaultInstallments Int? 
-  feePercent  Decimal? @default(0)
-  description String?
+  id                  BigInt       @id @default(autoincrement())
+  name                String
+  type                payment_type
+  active              Boolean      @default(true)
+  allowInstallments   Boolean      @default(false)
+  defaultInstallments Int?
+  feePercent          Decimal?     @default(0)
+  description         String?
 
   tenantId BigInt?
   tenant   tenant? @relation(fields: [tenantId], references: [id])
 
-  payments payment[]
+  payments         payment[]
   financialEntries FinancialEntry[]
 
   @@unique([tenantId, name])
@@ -283,23 +284,26 @@ model PaymentMethod {
 }
 
 enum payment_type {
-  CASH        // à vista
-  CREDIT      // cartão crédito
-  DEBIT       // cartão débito
+  CASH // à vista
+  CREDIT // cartão crédito
+  DEBIT // cartão débito
   PIX
   BANK
-  EXCHANGE    // permuta
+  EXCHANGE // permuta
   OTHER
 }
 
 model FinancialAccount {
-  id        BigInt  @id @default(autoincrement())
-  name      String
-  type      account_type
-  balance   Decimal @default(0)
+  id      BigInt       @id @default(autoincrement())
+  name    String
+  type    account_type
+  balance Decimal      @default(0)
 
   tenantId BigInt?
   tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  financialEntries FinancialEntry[]
+  transactions     FinancialTransaction[]
 
   @@index([tenantId])
 }
@@ -311,21 +315,26 @@ enum account_type {
 }
 
 model FinancialEntry {
-  id              BigInt  @id @default(autoincrement())
-  type            entry_type
-  description     String?
-  amount          Decimal
-  dueDate         DateTime
-  paidAt          DateTime?
+  id          BigInt     @id @default(autoincrement())
+  type        entry_type
+  description String?
+  amount      Decimal
+  dueDate     DateTime
+  paidAt      DateTime?
 
-  workOrderId     BigInt?   // 👈 adicionar
-  workorder       workorder? @relation(fields: [workOrderId], references: [id])
+  workOrderId BigInt?
+  workorder   workorder? @relation(fields: [workOrderId], references: [id])
 
   paymentMethodId BigInt?
   paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
 
+  accountId BigInt?
+  account   FinancialAccount? @relation(fields: [accountId], references: [id])
+
   tenantId BigInt?
   tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  transactions FinancialTransaction[]
 
   @@index([tenantId])
 }
@@ -333,4 +342,28 @@ model FinancialEntry {
 enum entry_type {
   RECEIVABLE
   PAYABLE
+}
+
+model FinancialTransaction {
+  id        BigInt           @id @default(autoincrement())
+  amount    Decimal
+  type      transaction_type
+  createdAt DateTime         @default(now())
+
+  accountId BigInt
+  account   FinancialAccount @relation(fields: [accountId], references: [id])
+
+  entryId BigInt?
+  entry   FinancialEntry? @relation(fields: [entryId], references: [id])
+
+  tenantId BigInt?
+  tenant   tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([accountId])
+  @@index([tenantId])
+}
+
+enum transaction_type {
+  CREDIT
+  DEBIT
 }
