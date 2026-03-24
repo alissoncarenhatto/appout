@@ -27,11 +27,62 @@ export class WorkordersService {
     return BigInt(String(v));
   }
 
-  async findAll(user: any) {
+  async findAll(
+    user: any,
+    filters?: {
+      q?: string;
+      customerId?: string | number;
+      vehicleId?: string | number;
+      status?: string;
+    },
+  ) {
     const where: any = {};
 
     if (user?.tenantId) {
       where.tenantId = BigInt(String(user.tenantId));
+    }
+
+    if (filters?.customerId) {
+      where.customerId = this.toBig(filters.customerId);
+    }
+
+    if (filters?.vehicleId) {
+      where.vehicleId = this.toBig(filters.vehicleId);
+    }
+
+    if (filters?.status) {
+      where.status = filters.status.trim().toUpperCase();
+    }
+
+    if (filters?.q?.trim()) {
+      const q = filters.q.trim();
+
+      where.OR = [
+        {
+          number: {
+            contains: q,
+          },
+        },
+        {
+          notes: {
+            contains: q,
+          },
+        },
+        {
+          customer: {
+            name: {
+              contains: q,
+            },
+          },
+        },
+        {
+          vehicle: {
+            plate: {
+              contains: q,
+            },
+          },
+        },
+      ];
     }
 
     return this.prisma.workorder.findMany({
@@ -422,6 +473,53 @@ export class WorkordersService {
     });
 
     return { success: true };
+  }
+
+  async updateSchedule(
+    user: any,
+    id: string | number | bigint,
+    dto: Pick<ScheduleWorkorderDto, "startAt" | "endAt">,
+  ) {
+    const bid = this.toBig(id);
+    const start = new Date(dto.startAt);
+    const end = new Date(dto.endAt);
+    const now = new Date();
+
+    await this.findOne(user, bid);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      throw new BadRequestException("Data de agendamento inválida");
+    }
+
+    if (start < now) {
+      throw new BadRequestException("Não é possível agendar no passado");
+    }
+
+    if (end <= start) {
+      throw new BadRequestException("Horário final inválido");
+    }
+
+    return this.prisma.workorder.update({
+      where: { id: bid },
+      data: {
+        scheduledAt: start,
+        finishedAt: end,
+      },
+    });
+  }
+
+  async removeSchedule(user: any, id: string | number | bigint) {
+    const bid = this.toBig(id);
+
+    await this.findOne(user, bid);
+
+    return this.prisma.workorder.update({
+      where: { id: bid },
+      data: {
+        scheduledAt: null,
+        finishedAt: null,
+      },
+    });
   }
 
   async update(user: any, id: string, data: any) {

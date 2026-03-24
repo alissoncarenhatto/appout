@@ -21,8 +21,19 @@ export class WorkordersController {
   constructor(private readonly service: WorkordersService) {}
 
   @Get()
-  findAll(@Req() req: Request) {
-    return this.service.findAll(req.user);
+  findAll(
+    @Req() req: Request,
+    @Query("q") q?: string,
+    @Query("customerId") customerId?: string,
+    @Query("vehicleId") vehicleId?: string,
+    @Query("status") status?: string,
+  ) {
+    return this.service.findAll(req.user, {
+      q,
+      customerId,
+      vehicleId,
+      status,
+    });
   }
 
   @Post()
@@ -77,6 +88,20 @@ export class WorkordersController {
   @Post("schedule")
   schedule(@Req() req: any, @Body() dto: ScheduleWorkorderDto) {
     return this.service.schedule(req.user, dto);
+  }
+
+  @Patch(":id(\\d+)/schedule")
+  updateSchedule(
+    @Req() req: any,
+    @Param("id") id: string,
+    @Body() dto: ScheduleWorkorderDto,
+  ) {
+    return this.service.updateSchedule(req.user, id, dto);
+  }
+
+  @Delete(":id(\\d+)/schedule")
+  removeSchedule(@Req() req: any, @Param("id") id: string) {
+    return this.service.removeSchedule(req.user, id);
   }
 
   @Post(":id/pay")
