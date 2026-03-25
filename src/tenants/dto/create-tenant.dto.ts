@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsNotEmpty, Length } from "class-validator";
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Length,
+} from "class-validator";
 
 export class CreateTenantDto {
   @IsString()
@@ -8,6 +14,26 @@ export class CreateTenantDto {
   @IsString()
   @IsOptional()
   code?: string;
+
+  @IsOptional()
+  @IsString()
+  document?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
 
   @IsOptional()
   @IsString()

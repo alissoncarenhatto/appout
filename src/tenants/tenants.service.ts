@@ -8,7 +8,7 @@ export class TenantsService {
   constructor(private prisma: PrismaService) {}
 
   async create(data: CreateTenantDto) {
-    return this.prisma.tenant.create({ data });
+    return this.prisma.tenant.create({ data: this.normalizeTenantData(data) });
   }
 
   async findAll() {
@@ -25,12 +25,44 @@ export class TenantsService {
     await this.findOne(id);
     return this.prisma.tenant.update({
       where: { id: BigInt(id) },
-      data,
+      data: this.normalizeTenantData(data),
     });
   }
 
   async remove(id: number) {
     await this.findOne(id);
     return this.prisma.tenant.delete({ where: { id: BigInt(id) } });
+  }
+
+  async updateLogoUrl(id: number, logoUrl: string) {
+    await this.findOne(id);
+    return this.prisma.tenant.update({
+      where: { id: BigInt(id) },
+      data: { logoUrl },
+    });
+  }
+
+  private normalizeTenantData<T extends Record<string, any>>(data: T): T {
+    return {
+      ...data,
+      code: this.emptyToNull(data.code),
+      document: this.emptyToNull(data.document),
+      phone: this.emptyToNull(data.phone),
+      email: this.emptyToNull(data.email),
+      address: this.emptyToNull(data.address),
+      logoUrl: this.emptyToNull(data.logoUrl),
+      country:
+        data.country !== undefined && data.country !== null
+          ? String(data.country).trim().toUpperCase()
+          : data.country,
+      defaultLocale: this.emptyToNull(data.defaultLocale),
+    } as T;
+  }
+
+  private emptyToNull(value: any) {
+    if (value === undefined) return undefined;
+    if (value === null) return null;
+    if (typeof value === "string" && value.trim() === "") return null;
+    return typeof value === "string" ? value.trim() : value;
   }
 }

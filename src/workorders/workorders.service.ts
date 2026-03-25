@@ -210,8 +210,9 @@ export class WorkordersService {
       where: { id: bid },
       data: { status: "DONE", finishedAt: new Date() },
       include: {
+        tenant: true,
         customer: true,
-        vehicle: true,
+        vehicle: { include: { brand: true, model: true } },
         workorderservice: { include: { servicecatalog: true } },
         workorderpart: { include: { part: true } },
       },

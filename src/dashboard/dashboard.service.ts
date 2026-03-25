@@ -17,12 +17,12 @@ export class DashboardService {
       throw new ForbiddenException("User without tenant");
     }
 
-    const startDate = filter.startDate ? new Date(filter.startDate) : null;
-    let endDate = filter.endDate ? new Date(filter.endDate) : null;
-
-    if (endDate) {
-      endDate.setHours(23, 59, 59, 999);
-    }
+    const startDate = filter.startDate
+      ? this.parseLocalDate(filter.startDate, false)
+      : null;
+    const endDate = filter.endDate
+      ? this.parseLocalDate(filter.endDate, true)
+      : null;
 
     const paymentDateFilter =
       startDate && endDate
@@ -44,12 +44,23 @@ export class DashboardService {
           }
         : {};
 
+    const workorderDateFilter =
+      startDate && endDate
+        ? {
+            finishedAt: {
+              gte: startDate,
+              lte: endDate,
+            },
+          }
+        : {};
+
     const now = new Date();
 
     const [
       statusCounts,
       futureScheduled,
       unscheduled,
+      doneOrdersForRevenue,
       payments,
       financialEntries,
       topServicesRaw,
@@ -78,6 +89,19 @@ export class DashboardService {
         where: {
           tenantId,
           scheduledAt: null,
+        },
+      }),
+
+      // PAGAMENTOS RECEBIDOS
+      this.prisma.workorder.findMany({
+        where: {
+          tenantId,
+          status: "DONE",
+          ...workorderDateFilter,
+        },
+        include: {
+          workorderservice: true,
+          workorderpart: true,
         },
       }),
 
@@ -174,16 +198,35 @@ export class DashboardService {
     const totalWorkOrders =
       status.pending + status.inProgress + status.done + status.canceled;
 
-    // RECEITA (payments)
+    // FATURAMENTO (OS concluídas)
 
     let totalRevenue = 0;
     const revenueMap = new Map<string, number>();
 
-    payments.forEach((p) => {
-      const value = Number(p.amount);
+    doneOrdersForRevenue.forEach((order) => {
+      const servicesTotal = order.workorderservice.reduce(
+        (sum, item) =>
+          sum +
+          Number(item.unitPrice ?? 0) * Number(item.qty ?? 0) -
+          Number(item.discount ?? 0),
+        0,
+      );
+
+      const partsTotal = order.workorderpart.reduce(
+        (sum, item) =>
+          sum +
+          Number(item.unitPrice ?? 0) * Number(item.qty ?? 0) -
+          Number(item.discount ?? 0),
+        0,
+      );
+
+      const value =
+        servicesTotal + partsTotal - Number(order.discount ?? 0);
+
       totalRevenue += value;
 
-      const date = p.receivedAt.toISOString().split("T")[0];
+      const date = this.formatLocalDate(order.finishedAt);
+      if (!date) return;
 
       if (!revenueMap.has(date)) {
         revenueMap.set(date, 0);
@@ -197,7 +240,9 @@ export class DashboardService {
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     const ticketAverage =
-      payments.length > 0 ? totalRevenue / payments.length : 0;
+      doneOrdersForRevenue.length > 0
+        ? totalRevenue / doneOrdersForRevenue.length
+        : 0;
 
     // CRESCIMENTO
 
@@ -292,14 +337,14 @@ export class DashboardService {
         id: Number(o.id),
         customer: o.customer?.name ?? "Cliente",
         total: servicesTotal + partsTotal,
-        date: o.finishedAt?.toISOString().split("T")[0],
+        date: this.formatLocalDate(o.finishedAt),
       };
     });
 
     // AGENDA
 
     const nextSchedules = nextSchedulesRaw.map((o) => ({
-      date: o.scheduledAt?.toISOString().split("T")[0],
+      date: this.formatLocalDate(o.scheduledAt),
       customer: o.customer?.name ?? "",
       vehicle: o.vehicle?.plate ?? "",
     }));
@@ -334,5 +379,32 @@ export class DashboardService {
       lastOrders,
       nextSchedules,
     };
+  }
+
+  private parseLocalDate(value: string, endOfDay: boolean) {
+    const [year, month, day] = value.split("-").map(Number);
+
+    if (!year || !month || !day) {
+      return new Date(value);
+    }
+
+    if (endOfDay) {
+      return new Date(year, month - 1, day, 23, 59, 59, 999);
+    }
+
+    return new Date(year, month - 1, day, 0, 0, 0, 0);
+  }
+
+  private formatLocalDate(value?: Date | string | null) {
+    if (!value) return undefined;
+
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return undefined;
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
   }
 }

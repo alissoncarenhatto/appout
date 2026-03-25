@@ -11,6 +11,11 @@ model tenant {
   id            BigInt   @id @default(autoincrement())
   name          String   @unique
   code          String?  @unique
+  document      String?
+  phone         String?
+  email         String?
+  address       String?
+  logoUrl       String?  @db.VarChar(512)
   createdAt     DateTime @default(now())
   country       String   @default("BR")
   defaultLocale String   @default("pt-BR")
