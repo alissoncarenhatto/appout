@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { I18nService } from 'src/i18n/i18n.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 
 @Injectable()
 export class TenantsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly i18n: I18nService,
+  ) {}
 
   async create(data: CreateTenantDto) {
     return this.prisma.tenant.create({ data: this.normalizeTenantData(data) });
@@ -43,6 +47,11 @@ export class TenantsService {
   }
 
   private normalizeTenantData<T extends Record<string, any>>(data: T): T {
+    const country =
+      data.country !== undefined && data.country !== null
+        ? this.i18n.normalizeCountry(data.country)
+        : data.country;
+
     return {
       ...data,
       code: this.emptyToNull(data.code),
@@ -51,11 +60,11 @@ export class TenantsService {
       email: this.emptyToNull(data.email),
       address: this.emptyToNull(data.address),
       logoUrl: this.emptyToNull(data.logoUrl),
-      country:
-        data.country !== undefined && data.country !== null
-          ? String(data.country).trim().toUpperCase()
-          : data.country,
-      defaultLocale: this.emptyToNull(data.defaultLocale),
+      country,
+      defaultLocale:
+        data.defaultLocale !== undefined
+          ? this.i18n.normalizeLocale(data.defaultLocale, null, country)
+          : this.emptyToNull(data.defaultLocale),
     } as T;
   }
 

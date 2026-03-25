@@ -20,12 +20,14 @@ import { join } from "path";
 import { TenantsModule } from "./tenants/tenants.module";
 import { FinancialModule } from "./financial/financial.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
+import { I18nModule } from "./i18n/i18n.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     AuthModule,
     PrismaModule,
+    I18nModule,
 
     UsersModule,
     CustomersModule,

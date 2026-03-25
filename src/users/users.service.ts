@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
+import { I18nService } from "../i18n/i18n.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 interface ListOpts {
@@ -13,7 +14,10 @@ interface ListOpts {
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly i18n: I18nService,
+  ) {}
 
   async list(user: any, opts: ListOpts = { page: 1, pageSize: 50 }) {
     const where: any = {};
@@ -76,17 +80,26 @@ export class UsersService {
     }
 
     let localeToUse = "pt-BR";
+    let tenantCountry: string | null = null;
 
     if (tenantIdToUse) {
       const tenant = await this.prisma.tenant.findUnique({
         where: { id: BigInt(tenantIdToUse) },
-        select: { defaultLocale: true },
+        select: { country: true, defaultLocale: true },
       });
+
+      tenantCountry = tenant?.country ?? null;
 
       if (tenant?.defaultLocale) {
         localeToUse = tenant.defaultLocale;
       }
     }
+
+    localeToUse = this.i18n.resolveUserLocale(
+      dto.locale,
+      localeToUse,
+      tenantCountry,
+    );
 
     let roleIdToUse: number | undefined = undefined;
 
@@ -169,7 +182,23 @@ export class UsersService {
       updateData.tenantId = dto.tenantId ? BigInt(String(dto.tenantId)) : null;
 
     if (dto.locale !== undefined) {
-      updateData.locale = dto.locale;
+      let tenantCountry: string | null = null;
+
+      if (target.tenantId) {
+        const tenant = await this.prisma.tenant.findUnique({
+          where: { id: target.tenantId },
+          select: { country: true, defaultLocale: true },
+        });
+
+        tenantCountry = tenant?.country ?? null;
+        updateData.locale = this.i18n.resolveUserLocale(
+          dto.locale,
+          tenant?.defaultLocale,
+          tenantCountry,
+        );
+      } else {
+        updateData.locale = this.i18n.normalizeLocale(dto.locale);
+      }
     }
 
     const updated = await this.prisma.user.update({

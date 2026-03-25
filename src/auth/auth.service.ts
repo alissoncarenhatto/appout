@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
+import { I18nService } from "../i18n/i18n.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
@@ -8,6 +9,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly i18n: I18nService,
   ) {}
 
   async validateUser(email: string, password: string) {
@@ -35,7 +37,16 @@ export class AuthService {
       tenantId: user.tenantId ? user.tenantId.toString() : null,
       tenantName: user.tenant?.name ?? null,
       role: user.role?.name ?? null,
+      locale: this.i18n.resolveUserLocale(
+        user.locale,
+        user.tenant?.defaultLocale,
+        user.tenant?.country,
+      ),
     };
+    const business = this.i18n.getBusinessConfig(
+      user.tenant?.country,
+      user.tenant?.defaultLocale,
+    );
 
     return {
       access_token: await this.jwt.signAsync(payload),
@@ -46,13 +57,19 @@ export class AuthService {
         tenantId: user.tenantId ? user.tenantId.toString() : null,
         tenantName: user.tenant?.name ?? null,
         role: user.role?.name ?? null,
-        locale: user.locale,
+        locale: this.i18n.resolveUserLocale(
+          user.locale,
+          user.tenant?.defaultLocale,
+          user.tenant?.country,
+        ),
+        language: this.i18n.getLanguage(user.locale),
       },
       tenant: {
         id: user.tenant?.id?.toString() ?? null,
         name: user.tenant?.name ?? null,
-        country: user.tenant?.country ?? null,
-        defaultLocale: user.tenant?.defaultLocale ?? null,
+        country: business.country,
+        currency: business.currency,
+        defaultLocale: business.defaultLocale,
       },
     };
   }

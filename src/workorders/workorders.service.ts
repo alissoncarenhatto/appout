@@ -218,7 +218,7 @@ export class WorkordersService {
       },
     });
 
-    const pdfUrl = await this.pdfService.generate(updated);
+    const pdfUrl = await this.pdfService.generate(updated, user);
 
     return {
       ...updated,

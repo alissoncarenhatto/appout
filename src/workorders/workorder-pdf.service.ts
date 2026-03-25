@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import * as PDFDocument from "pdfkit";
 import * as fs from "fs";
 import * as path from "path";
+import { I18nService } from "../i18n/i18n.service";
 
 type WorkorderLineItem = {
   description: string;
@@ -13,6 +14,8 @@ type WorkorderLineItem = {
 
 @Injectable()
 export class WorkorderPdfService {
+  constructor(private readonly i18n: I18nService) {}
+
   private readonly pageWidth = 595.28;
   private readonly pageHeight = 841.89;
   private readonly margin = 42;
@@ -27,7 +30,7 @@ export class WorkorderPdfService {
   private readonly contentBottom = this.footerTop - 16;
   private readonly pageNumberY = this.pageHeight - this.margin - 12;
 
-  async generate(workorder: any): Promise<string> {
+  async generate(workorder: any, user?: any): Promise<string> {
     const uploadsDir = path.join(process.cwd(), "uploads", "workorders");
     fs.mkdirSync(uploadsDir, { recursive: true });
 
@@ -61,24 +64,53 @@ export class WorkorderPdfService {
     const partsSubtotal = this.sumItems(parts);
     const orderDiscount = Number(workorder.discount ?? 0);
     const total = servicesSubtotal + partsSubtotal - orderDiscount;
+    const locale = this.i18n.resolveUserLocale(
+      user?.locale,
+      workorder.tenant?.defaultLocale,
+      workorder.tenant?.country,
+    );
 
-    this.drawBrandHeader(doc, workorder);
-    this.drawDocumentBand(doc, workorder);
-    this.drawPartyRow(doc, workorder);
-    this.drawBasicInfo(doc, workorder);
-    this.drawTableSection(doc, "Servicos", services);
-    this.drawTableSection(doc, "Pecas", parts);
-    this.drawSummaryBox(doc, servicesSubtotal, partsSubtotal, orderDiscount, total);
-    this.drawNotes(doc, workorder.notes);
-    this.drawWorkshopFooter(doc, workorder);
-    this.addPageNumbers(doc);
+    this.drawBrandHeader(doc, workorder, locale);
+    this.drawDocumentBand(doc, workorder, locale);
+    this.drawPartyRow(doc, workorder, locale);
+    this.drawBasicInfo(doc, workorder, locale);
+    this.drawTableSection(
+      doc,
+      this.i18n.tPdf("serviceItems", locale),
+      services,
+      locale,
+      workorder.tenant?.country,
+    );
+    this.drawTableSection(
+      doc,
+      this.i18n.tPdf("partItems", locale),
+      parts,
+      locale,
+      workorder.tenant?.country,
+    );
+    this.drawSummaryBox(
+      doc,
+      servicesSubtotal,
+      partsSubtotal,
+      orderDiscount,
+      total,
+      locale,
+      workorder.tenant?.country,
+    );
+    this.drawNotes(doc, workorder.notes, locale);
+    this.drawWorkshopFooter(doc, workorder, locale);
+    this.addPageNumbers(doc, locale);
 
     doc.end();
 
     return `/uploads/workorders/${filename}`;
   }
 
-  private drawBrandHeader(doc: PDFKit.PDFDocument, workorder: any) {
+  private drawBrandHeader(
+    doc: PDFKit.PDFDocument,
+    workorder: any,
+    locale: string,
+  ) {
     const tenantName = this.valueOrDash(workorder.tenant?.name).toUpperCase();
     const initials = this.getInitials(workorder.tenant?.name);
     const centerX = this.pageWidth / 2;
@@ -116,7 +148,7 @@ export class WorkorderPdfService {
     });
 
     doc.fillColor(this.muted).font("Helvetica").fontSize(9.5);
-    doc.text("Comprovante de manutencao automotiva", this.margin, badgeY + 92, {
+    doc.text(this.i18n.tPdf("automotiveMaintenanceReceipt", locale), this.margin, badgeY + 92, {
       width: this.contentWidth,
       align: "center",
     });
@@ -124,9 +156,13 @@ export class WorkorderPdfService {
     doc.y = badgeY + 120;
   }
 
-  private drawDocumentBand(doc: PDFKit.PDFDocument, workorder: any) {
+  private drawDocumentBand(
+    doc: PDFKit.PDFDocument,
+    workorder: any,
+    locale: string,
+  ) {
     const top = doc.y;
-    const label = `Nota de servico ${String(workorder.number ?? workorder.id)}`;
+    const label = `${this.i18n.tPdf("serviceNote", locale)} ${String(workorder.number ?? workorder.id)}`;
 
     doc.rect(this.margin, top, this.contentWidth, 22).fill(this.dark);
     doc.fillColor("#FFFFFF").font("Helvetica-Bold").fontSize(11);
@@ -135,13 +171,17 @@ export class WorkorderPdfService {
     doc.y = top + 34;
   }
 
-  private drawPartyRow(doc: PDFKit.PDFDocument, workorder: any) {
+  private drawPartyRow(
+    doc: PDFKit.PDFDocument,
+    workorder: any,
+    locale: string,
+  ) {
     const top = doc.y;
     const leftWidth = 280;
     const rightX = this.margin + 300;
 
     doc.fillColor(this.dark).font("Helvetica-Bold").fontSize(9.5);
-    doc.text("Cliente", this.margin, top);
+    doc.text(this.i18n.tPdf("customer", locale), this.margin, top);
     doc.font("Helvetica").fontSize(10.5);
     doc.text(this.valueOrDash(workorder.customer?.name), this.margin, top + 14, {
       width: leftWidth,
@@ -160,7 +200,7 @@ export class WorkorderPdfService {
     }
 
     doc.fillColor(this.dark).font("Helvetica-Bold").fontSize(9.5);
-    doc.text("Oficina", rightX, top);
+    doc.text(this.i18n.tPdf("office", locale), rightX, top);
     doc.font("Helvetica").fontSize(10.5);
     doc.text(this.valueOrDash(workorder.tenant?.name), rightX, top + 14, {
       width: 210,
@@ -168,7 +208,7 @@ export class WorkorderPdfService {
     });
 
     const rightSub = [
-      workorder.tenant?.code ? `Cod. ${workorder.tenant.code}` : null,
+      workorder.tenant?.code ? `${this.i18n.tPdf("code", locale)}. ${workorder.tenant.code}` : null,
       workorder.tenant?.document ? workorder.tenant.document : null,
       workorder.tenant?.country ? workorder.tenant.country : null,
     ]
@@ -187,25 +227,29 @@ export class WorkorderPdfService {
     doc.y = top + 64;
   }
 
-  private drawBasicInfo(doc: PDFKit.PDFDocument, workorder: any) {
-    this.drawSectionHeader(doc, "Informacoes basicas");
+  private drawBasicInfo(
+    doc: PDFKit.PDFDocument,
+    workorder: any,
+    locale: string,
+  ) {
+    this.drawSectionHeader(doc, this.i18n.tPdf("basicInformation", locale));
 
     const leftX = this.margin;
     const rightX = this.margin + 250;
     const top = doc.y;
 
     const leftRows: Array<[string, string]> = [
-      ["Marca", this.valueOrDash(workorder.vehicle?.brand?.name)],
-      ["Placa do veiculo", this.valueOrDash(workorder.vehicle?.plate)],
-      ["Chassi", this.valueOrDash(workorder.vehicle?.vin)],
-      ["Cliente", this.valueOrDash(workorder.customer?.name)],
+      [this.i18n.tPdf("brand", locale), this.valueOrDash(workorder.vehicle?.brand?.name)],
+      [this.i18n.tPdf("vehiclePlate", locale), this.valueOrDash(workorder.vehicle?.plate)],
+      [this.i18n.tPdf("chassis", locale), this.valueOrDash(workorder.vehicle?.vin)],
+      [this.i18n.tPdf("client", locale), this.valueOrDash(workorder.customer?.name)],
     ];
 
     const rightRows: Array<[string, string]> = [
-      ["Modelo", this.valueOrDash(workorder.vehicle?.model?.name)],
-      ["Cor", this.valueOrDash(workorder.vehicle?.color)],
-      ["Ano", this.valueOrDash(workorder.vehicle?.year?.toString())],
-      ["Status", this.formatStatus(workorder.status)],
+      [this.i18n.tPdf("model", locale), this.valueOrDash(workorder.vehicle?.model?.name)],
+      [this.i18n.tPdf("color", locale), this.valueOrDash(workorder.vehicle?.color)],
+      [this.i18n.tPdf("year", locale), this.valueOrDash(workorder.vehicle?.year?.toString())],
+      [this.i18n.tPdf("status", locale), this.formatStatus(workorder.status, locale)],
     ];
 
     const leftHeight = this.drawDetailsColumn(doc, leftX, top, 210, leftRows);
@@ -214,7 +258,7 @@ export class WorkorderPdfService {
     const metaTop = top + Math.max(leftHeight, rightHeight) + 4;
     doc.fillColor(this.muted).font("Helvetica").fontSize(8.8);
     doc.text(
-      `Agendado: ${this.formatDateTime(workorder.scheduledAt)}  |  Iniciado: ${this.formatDateTime(workorder.startedAt)}  |  Finalizado: ${this.formatDateTime(workorder.finishedAt)}`,
+      `${this.i18n.tPdf("dateScheduled", locale)}: ${this.formatDateTime(workorder.scheduledAt, locale)}  |  ${this.i18n.tPdf("dateStarted", locale)}: ${this.formatDateTime(workorder.startedAt, locale)}  |  ${this.i18n.tPdf("dateFinished", locale)}: ${this.formatDateTime(workorder.finishedAt, locale)}`,
       this.margin,
       metaTop,
       { width: this.contentWidth },
@@ -227,6 +271,8 @@ export class WorkorderPdfService {
     doc: PDFKit.PDFDocument,
     title: string,
     items: WorkorderLineItem[],
+    locale: string,
+    country?: string | null,
   ) {
     this.ensureSpace(doc, 60);
     this.drawSectionHeader(doc, title);
@@ -248,23 +294,23 @@ export class WorkorderPdfService {
     };
 
     doc.fillColor(this.muted).font("Helvetica").fontSize(8);
-    doc.text("Descricao", columns.description, top);
-    doc.text("Unidade", columns.unit, top, {
+    doc.text(this.i18n.tPdf("description", locale), columns.description, top);
+    doc.text(this.i18n.tPdf("unit", locale), columns.unit, top, {
       width: columnWidths.unit,
       align: "right",
       lineBreak: false,
     });
-    doc.text("Preco unitario", columns.unitPrice, top, {
+    doc.text(this.i18n.tPdf("unitPrice", locale), columns.unitPrice, top, {
       width: columnWidths.unitPrice,
       align: "right",
       lineBreak: false,
     });
-    doc.text("Qtd.", columns.qty, top, {
+    doc.text(this.i18n.tPdf("quantity", locale), columns.qty, top, {
       width: columnWidths.qty,
       align: "right",
       lineBreak: false,
     });
-    doc.text("Preco", columns.total, top, {
+    doc.text(this.i18n.tPdf("price", locale), columns.total, top, {
       width: columnWidths.total,
       align: "right",
       lineBreak: false,
@@ -276,7 +322,7 @@ export class WorkorderPdfService {
 
     if (!items.length) {
       doc.fillColor(this.muted).font("Helvetica").fontSize(9);
-      doc.text("Nenhum item informado.", this.margin + 8, y + 4);
+      doc.text(this.i18n.tPdf("noItemsProvided", locale), this.margin + 8, y + 4);
       doc.y = y + 24;
       return;
     }
@@ -307,23 +353,23 @@ export class WorkorderPdfService {
 
         const continuedTop = doc.y;
         doc.fillColor(this.muted).font("Helvetica").fontSize(8);
-        doc.text("Descricao", columns.description, continuedTop);
-        doc.text("Unidade", columns.unit, continuedTop, {
+        doc.text(this.i18n.tPdf("description", locale), columns.description, continuedTop);
+        doc.text(this.i18n.tPdf("unit", locale), columns.unit, continuedTop, {
           width: columnWidths.unit,
           align: "right",
           lineBreak: false,
         });
-        doc.text("Preco unitario", columns.unitPrice, continuedTop, {
+        doc.text(this.i18n.tPdf("unitPrice", locale), columns.unitPrice, continuedTop, {
           width: columnWidths.unitPrice,
           align: "right",
           lineBreak: false,
         });
-        doc.text("Qtd.", columns.qty, continuedTop, {
+        doc.text(this.i18n.tPdf("quantity", locale), columns.qty, continuedTop, {
           width: columnWidths.qty,
           align: "right",
           lineBreak: false,
         });
-        doc.text("Preco", columns.total, continuedTop, {
+        doc.text(this.i18n.tPdf("price", locale), columns.total, continuedTop, {
           width: columnWidths.total,
           align: "right",
           lineBreak: false,
@@ -355,17 +401,17 @@ export class WorkorderPdfService {
         align: "right",
         lineBreak: false,
       });
-      doc.text(this.formatMoney(item.unitPrice), columns.unitPrice, y, {
+      doc.text(this.formatMoney(item.unitPrice, locale, country), columns.unitPrice, y, {
         width: columnWidths.unitPrice,
         align: "right",
         lineBreak: false,
       });
-      doc.text(this.formatQty(item.qty), columns.qty, y, {
+      doc.text(this.formatQty(item.qty, locale), columns.qty, y, {
         width: columnWidths.qty,
         align: "right",
         lineBreak: false,
       });
-      doc.text(this.formatMoney(lineTotal), columns.total, y, {
+      doc.text(this.formatMoney(lineTotal, locale, country), columns.total, y, {
         width: columnWidths.total,
         align: "right",
         lineBreak: false,
@@ -383,6 +429,8 @@ export class WorkorderPdfService {
     partsSubtotal: number,
     orderDiscount: number,
     total: number,
+    locale: string,
+    country?: string | null,
   ) {
     this.ensureSpace(doc, 80);
 
@@ -397,9 +445,9 @@ export class WorkorderPdfService {
     doc.moveTo(x, y + 60).lineTo(x + boxWidth, y + 60).stroke(this.dark);
 
     const rows: Array<[string, string, number]> = [
-      ["Servicos", this.formatMoney(servicesSubtotal), y + 5],
-      ["Pecas", this.formatMoney(partsSubtotal), y + 25],
-      ["Desconto", this.formatMoney(orderDiscount * -1), y + 45],
+      [this.i18n.tPdf("serviceItems", locale), this.formatMoney(servicesSubtotal, locale, country), y + 5],
+      [this.i18n.tPdf("partItems", locale), this.formatMoney(partsSubtotal, locale, country), y + 25],
+      [this.i18n.tPdf("discount", locale), this.formatMoney(orderDiscount * -1, locale, country), y + 45],
     ];
 
     rows.forEach(([label, value, rowY]) => {
@@ -413,8 +461,8 @@ export class WorkorderPdfService {
 
     doc.rect(x, y + 60, boxWidth, 20).fill(this.dark);
     doc.fillColor("#FFFFFF").font("Helvetica-Bold").fontSize(9.5);
-    doc.text("Total", x + 10, y + 66);
-    doc.text(this.formatMoney(total), x + 170, y + 66, {
+    doc.text(this.i18n.tPdf("total", locale), x + 10, y + 66);
+    doc.text(this.formatMoney(total, locale, country), x + 170, y + 66, {
       width: 88,
       align: "right",
     });
@@ -422,7 +470,11 @@ export class WorkorderPdfService {
     doc.y = y + 78;
   }
 
-  private drawNotes(doc: PDFKit.PDFDocument, notes?: string | null) {
+  private drawNotes(
+    doc: PDFKit.PDFDocument,
+    notes: string | null | undefined,
+    locale: string,
+  ) {
     if (!notes?.trim()) return;
 
     const text = notes.trim();
@@ -432,7 +484,7 @@ export class WorkorderPdfService {
     });
 
     this.ensureSpace(doc, notesHeight + 30);
-    this.drawSectionHeader(doc, "Observacoes");
+    this.drawSectionHeader(doc, this.i18n.tPdf("notes", locale));
 
     doc.fillColor(this.dark).font("Helvetica").fontSize(9.5);
     doc.text(text, this.margin + 2, doc.y, {
@@ -441,7 +493,11 @@ export class WorkorderPdfService {
     });
   }
 
-  private drawWorkshopFooter(doc: PDFKit.PDFDocument, workorder: any) {
+  private drawWorkshopFooter(
+    doc: PDFKit.PDFDocument,
+    workorder: any,
+    locale: string,
+  ) {
     const top = this.footerTop;
     const textHeight = this.footerHeight - 6;
 
@@ -449,19 +505,19 @@ export class WorkorderPdfService {
 
     const tenantLines = [
       this.valueOrDash(workorder.tenant?.name),
-      workorder.tenant?.code ? `Codigo: ${workorder.tenant.code}` : null,
-      workorder.tenant?.document ? `Documento: ${workorder.tenant.document}` : null,
-      workorder.tenant?.phone ? `Telefone: ${workorder.tenant.phone}` : null,
+      workorder.tenant?.code ? `${this.i18n.tPdf("code", locale)}: ${workorder.tenant.code}` : null,
+      workorder.tenant?.document ? `${this.i18n.tPdf("document", locale)}: ${workorder.tenant.document}` : null,
+      workorder.tenant?.phone ? `${this.i18n.tPdf("phone", locale)}: ${workorder.tenant.phone}` : null,
       workorder.tenant?.email ? `E-mail: ${workorder.tenant.email}` : null,
       workorder.tenant?.address ? workorder.tenant.address : null,
-      workorder.tenant?.country ? `Pais: ${workorder.tenant.country}` : null,
+      workorder.tenant?.country ? `${this.i18n.tPdf("country", locale)}: ${workorder.tenant.country}` : null,
     ]
       .filter(Boolean)
       .join("\n");
 
     const customerLines = [
-      `Cliente: ${this.valueOrDash(workorder.customer?.name)}`,
-      workorder.customer?.phone ? `Telefone: ${workorder.customer.phone}` : null,
+      `${this.i18n.tPdf("customer", locale)}: ${this.valueOrDash(workorder.customer?.name)}`,
+      workorder.customer?.phone ? `${this.i18n.tPdf("phone", locale)}: ${workorder.customer.phone}` : null,
       workorder.customer?.email ? `E-mail: ${workorder.customer.email}` : null,
     ]
       .filter(Boolean)
@@ -483,13 +539,13 @@ export class WorkorderPdfService {
     });
   }
 
-  private addPageNumbers(doc: PDFKit.PDFDocument) {
+  private addPageNumbers(doc: PDFKit.PDFDocument, locale: string) {
     const range = doc.bufferedPageRange();
 
     for (let i = 0; i < range.count; i++) {
       doc.switchToPage(i);
       doc.fillColor(this.muted).font("Helvetica").fontSize(8);
-      doc.text(`Pagina ${i + 1}/${range.count}`, this.margin, this.pageNumberY, {
+      doc.text(`${this.i18n.tPdf("page", locale)} ${i + 1}/${range.count}`, this.margin, this.pageNumberY, {
         width: this.contentWidth,
         align: "right",
         lineBreak: false,
@@ -531,41 +587,20 @@ export class WorkorderPdfService {
     );
   }
 
-  private formatMoney(value: number) {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-      minimumFractionDigits: 2,
-    }).format(Number(value ?? 0));
+  private formatMoney(value: number, locale: string, country?: string | null) {
+    return this.i18n.formatMoney(value, locale, country);
   }
 
-  private formatQty(value: number) {
-    return new Intl.NumberFormat("pt-BR", {
-      minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
-      maximumFractionDigits: 2,
-    }).format(Number(value ?? 0));
+  private formatQty(value: number, locale: string) {
+    return this.i18n.formatQty(value, locale);
   }
 
-  private formatDateTime(value?: Date | string | null) {
-    if (!value) return "-";
-    const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return "-";
-
-    return new Intl.DateTimeFormat("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "short",
-    }).format(date);
+  private formatDateTime(value: Date | string | null | undefined, locale: string) {
+    return this.i18n.formatDateTime(value, locale);
   }
 
-  private formatStatus(status?: string | null) {
-    const labels: Record<string, string> = {
-      PENDING: "Pendente",
-      IN_PROGRESS: "Em andamento",
-      DONE: "Concluida",
-      CANCELED: "Cancelada",
-    };
-
-    return labels[String(status)] ?? this.valueOrDash(status);
+  private formatStatus(status: string | null | undefined, locale: string) {
+    return this.i18n.translateStatus(status, locale);
   }
 
   private getInitials(name?: string | null) {
