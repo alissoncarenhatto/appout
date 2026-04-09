@@ -3,6 +3,7 @@ import * as PDFDocument from "pdfkit";
 import * as fs from "fs";
 import * as path from "path";
 import { I18nService } from "../i18n/i18n.service";
+import { StorageService } from "src/storage/storage.service";
 
 type WorkorderLineItem = {
   description: string;
@@ -14,7 +15,10 @@ type WorkorderLineItem = {
 
 @Injectable()
 export class WorkorderPdfService {
-  constructor(private readonly i18n: I18nService) {}
+  constructor(
+    private readonly i18n: I18nService,
+    private readonly storageService: StorageService,
+  ) {}
 
   private readonly pageWidth = 595.28;
   private readonly pageHeight = 841.89;
@@ -36,13 +40,19 @@ export class WorkorderPdfService {
 
     const filename = `workorder-${workorder.id}.pdf`;
     const filepath = path.join(uploadsDir, filename);
+    const logoSource = await this.resolvePdfAssetSource(workorder.tenant?.logoUrl);
 
     const doc = new PDFDocument({
       margin: this.margin,
       size: "A4",
       bufferPages: true,
     });
-    doc.pipe(fs.createWriteStream(filepath));
+    const writeStream = fs.createWriteStream(filepath);
+    const writeCompleted = new Promise<void>((resolve, reject) => {
+      writeStream.on("finish", () => resolve());
+      writeStream.on("error", reject);
+    });
+    doc.pipe(writeStream);
 
     const services = (workorder.workorderservice ?? []).map((item: any) => ({
       description: item.servicecatalog?.name ?? "Servico",
@@ -70,7 +80,7 @@ export class WorkorderPdfService {
       workorder.tenant?.country,
     );
 
-    this.drawBrandHeader(doc, workorder, locale);
+    this.drawBrandHeader(doc, workorder, locale, logoSource);
     this.drawDocumentBand(doc, workorder, locale);
     this.drawPartyRow(doc, workorder, locale);
     this.drawBasicInfo(doc, workorder, locale);
@@ -102,6 +112,16 @@ export class WorkorderPdfService {
     this.addPageNumbers(doc, locale);
 
     doc.end();
+    await writeCompleted;
+
+    if (this.storageService.isProduction()) {
+      return this.storageService.uploadLocalFile(
+        "workorders",
+        filepath,
+        filename,
+        "application/pdf",
+      );
+    }
 
     return `/uploads/workorders/${filename}`;
   }
@@ -110,18 +130,18 @@ export class WorkorderPdfService {
     doc: PDFKit.PDFDocument,
     workorder: any,
     locale: string,
+    logoSource?: string | Buffer | null,
   ) {
     const tenantName = this.valueOrDash(workorder.tenant?.name).toUpperCase();
     const initials = this.getInitials(workorder.tenant?.name);
     const centerX = this.pageWidth / 2;
     const badgeY = 24;
-    const logoPath = this.resolveLocalAssetPath(workorder.tenant?.logoUrl);
 
-    if (logoPath) {
+    if (logoSource) {
       doc
         .roundedRect(centerX - 34, badgeY - 2, 68, 68, 16)
         .fillAndStroke("#FFFFFF", this.line);
-      doc.image(logoPath, centerX - 28, badgeY + 4, {
+      doc.image(logoSource, centerX - 28, badgeY + 4, {
         fit: [56, 56],
         align: "center",
         valign: "center",
@@ -618,14 +638,24 @@ export class WorkorderPdfService {
     return value?.trim() || "-";
   }
 
-  private resolveLocalAssetPath(assetUrl?: string | null) {
+  private async resolvePdfAssetSource(assetUrl?: string | null) {
     if (!assetUrl) return null;
 
     const cleaned = String(assetUrl).trim();
     if (!cleaned) return null;
 
     if (/^https?:\/\//i.test(cleaned)) {
-      return null;
+      try {
+        const response = await fetch(cleaned);
+        if (!response.ok) {
+          return null;
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        return Buffer.from(arrayBuffer);
+      } catch {
+        return null;
+      }
     }
 
     const relativePath = cleaned.startsWith("/")

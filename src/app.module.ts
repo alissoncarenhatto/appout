@@ -21,6 +21,7 @@ import { TenantsModule } from "./tenants/tenants.module";
 import { FinancialModule } from "./financial/financial.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
 import { I18nModule } from "./i18n/i18n.module";
+import { StorageModule } from "./storage/storage.module";
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { I18nModule } from "./i18n/i18n.module";
     AuthModule,
     PrismaModule,
     I18nModule,
+    StorageModule,
 
     UsersModule,
     CustomersModule,

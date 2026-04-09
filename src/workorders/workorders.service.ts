@@ -203,8 +203,7 @@ export class WorkordersService {
 
   async finish(user: any, id: string | number | bigint) {
     const bid = this.toBig(id);
-
-    const workorder = await this.findOne(user, bid);
+    await this.findOne(user, bid);
 
     const updated = await this.prisma.workorder.update({
       where: { id: bid },
@@ -308,7 +307,7 @@ export class WorkordersService {
 
     const tenantId = this.toBigIntOrNull(user?.tenantId);
 
-    const created = this.prisma.workorderpart.create({
+    const created = await this.prisma.workorderpart.create({
       data: {
         workOrderId: bid,
         partId,
@@ -394,6 +393,7 @@ export class WorkordersService {
       user?.role === "SYSTEM_ADMIN"
         ? this.toBigIntOrNull(data.tenantId)
         : this.toBigIntOrNull(user?.tenantId);
+    const paymentMethodId = this.toBigIntOrNull(data.paymentMethodId);
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -410,24 +410,17 @@ export class WorkordersService {
         amount: data.amount,
         dueDate: new Date(),
         paidAt: new Date(),
-
-        workorder: {
-          connect: { id: id },
-        },
-
-        paymentMethod: {
-          connect: { id: this.toBigIntOrNull(data.paymentMethodId) },
-        },
-
-        tenant: {
-          connect: { id: this.toBigIntOrNull(user.tenantId) },
-        },
+        workOrderId: id,
+        paymentMethodId,
+        tenantId,
       },
     });
 
-    if (data.financialAccountId) {
+    const financialAccountId = this.toBigIntOrNull(data.financialAccountId);
+
+    if (financialAccountId !== null) {
       await this.prisma.financialAccount.update({
-        where: { id: this.toBigIntOrNull(data.financialAccountId) },
+        where: { id: financialAccountId },
         data: {
           balance: {
             increment: data.amount,

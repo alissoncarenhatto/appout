@@ -10,67 +10,80 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
-} from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import * as fs from 'fs';
-import { extname, join } from 'path';
-import { TenantsService } from './tenants.service';
-import { CreateTenantDto } from './dto/create-tenant.dto';
-import { UpdateTenantDto } from './dto/update-tenant.dto';
-import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
-import { RolesGuard } from 'src/auth/roles.guard';
-import { Roles } from 'src/auth/roles.decorator';
+} from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { Request } from "express";
+import { diskStorage } from "multer";
+import * as fs from "fs";
+import { extname, join } from "path";
+import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
+import { Roles } from "src/auth/roles.decorator";
+import { RolesGuard } from "src/auth/roles.guard";
+import { StorageService } from "src/storage/storage.service";
+import { CreateTenantDto } from "./dto/create-tenant.dto";
+import { UpdateTenantDto } from "./dto/update-tenant.dto";
+import { TenantsService } from "./tenants.service";
 
-function fileName(req, file, cb) {
-  const ext = extname(file.originalname || '').toLowerCase();
+function fileName(
+  _req: Request,
+  file: Express.Multer.File,
+  cb: (error: Error | null, filename: string) => void,
+) {
+  const ext = extname(file.originalname || "").toLowerCase();
   const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
   cb(null, name);
 }
 
-function fileFilter(req, file, cb) {
-  if (!file.mimetype?.startsWith('image/')) {
-    return cb(new BadRequestException('Arquivo inválido'), false);
+function fileFilter(
+  _req: Request,
+  file: Express.Multer.File,
+  cb: (error: Error | null, acceptFile: boolean) => void,
+) {
+  if (!file.mimetype?.startsWith("image/")) {
+    return cb(new BadRequestException("Arquivo invalido"), false);
   }
   cb(null, true);
 }
 
-@Controller('tenants')
+@Controller("tenants")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TenantsController {
-  constructor(private readonly service: TenantsService) {}
+  constructor(
+    private readonly service: TenantsService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @Post()
-  @Roles('SYSTEM_ADMIN')
+  @Roles("SYSTEM_ADMIN")
   create(@Body() dto: CreateTenantDto) {
     return this.service.create(dto);
   }
 
   @Get()
-  @Roles('SYSTEM_ADMIN')
+  @Roles("SYSTEM_ADMIN")
   findAll() {
     return this.service.findAll();
   }
 
-  @Get(':id')
-  @Roles('SYSTEM_ADMIN')
-  findOne(@Param('id') id: string) {
+  @Get(":id")
+  @Roles("SYSTEM_ADMIN")
+  findOne(@Param("id") id: string) {
     return this.service.findOne(Number(id));
   }
 
-  @Put(':id')
-  @Roles('SYSTEM_ADMIN')
-  update(@Param('id') id: string, @Body() dto: UpdateTenantDto) {
+  @Put(":id")
+  @Roles("SYSTEM_ADMIN")
+  update(@Param("id") id: string, @Body() dto: UpdateTenantDto) {
     return this.service.update(Number(id), dto);
   }
 
-  @Post(':id/logo')
-  @Roles('SYSTEM_ADMIN')
+  @Post(":id/logo")
+  @Roles("SYSTEM_ADMIN")
   @UseInterceptors(
-    FileInterceptor('file', {
+    FileInterceptor("file", {
       storage: diskStorage({
-        destination: (req, file, cb) => {
-          const dest = join(process.cwd(), 'uploads', 'tenants');
+        destination: (_req: Request, _file: Express.Multer.File, cb) => {
+          const dest = join(process.cwd(), "uploads", "tenants");
           fs.mkdirSync(dest, { recursive: true });
           cb(null, dest);
         },
@@ -81,18 +94,27 @@ export class TenantsController {
     }),
   )
   async uploadLogo(
-    @Param('id') id: string,
+    @Param("id") id: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    if (!file) throw new BadRequestException('Arquivo não enviado');
-    const publicUrl = `/uploads/tenants/${file.filename}`;
-    await this.service.updateLogoUrl(Number(id), publicUrl);
-    return { logoUrl: publicUrl };
+    if (!file) throw new BadRequestException("Arquivo nao enviado");
+
+    const logoUrl = this.storageService.isProduction()
+      ? await this.storageService.uploadLocalFile(
+          "tenants",
+          file.path,
+          file.filename,
+          file.mimetype,
+        )
+      : `/uploads/tenants/${file.filename}`;
+
+    await this.service.updateLogoUrl(Number(id), logoUrl);
+    return { logoUrl };
   }
 
-  @Delete(':id')
-  @Roles('SYSTEM_ADMIN')
-  remove(@Param('id') id: string) {
+  @Delete(":id")
+  @Roles("SYSTEM_ADMIN")
+  remove(@Param("id") id: string) {
     return this.service.remove(Number(id));
   }
 }
