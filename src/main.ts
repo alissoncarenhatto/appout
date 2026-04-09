@@ -27,8 +27,12 @@ async function bootstrap() {
   SwaggerModule.setup("api", app, document);
 
   app.enableCors({
-    origin: "*",
-    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    origin: [
+      "https://www.appoutz.com",
+      "https://appoutz.com",
+      "https://www.appoutz.com.br",
+      "https://appoutz.com.br",
+    ],
     credentials: true,
   });
 
