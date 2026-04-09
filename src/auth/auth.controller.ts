@@ -11,4 +11,9 @@ export class AuthController {
   login(@Body() body: { email: string; password: string }) {
     return this.authService.login(body.email, body.password);
   }
+
+  @Get("test")
+  test() {
+    return { ok: true };
+  }
 }
