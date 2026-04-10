@@ -1,13 +1,14 @@
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { ValidationPipe } from "@nestjs/common";
-import { ExpressAdapter } from "@nestjs/platform-express";
-import express from "express";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
 
 async function bootstrap() {
-  const server = express();
-
-  const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
+  const app = await NestFactory.create(AppModule);
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -16,18 +17,21 @@ async function bootstrap() {
     }),
   );
 
+  const config = new DocumentBuilder()
+    .setTitle("Appout")
+    .setVersion("1.0")
+    .addBearerAuth()
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup("api", app, document);
+
   app.enableCors({
     origin: true,
     credentials: true,
   });
 
-  await app.init();
-
-  const port = Number(process.env.PORT) || 3000;
-
-  server.listen(port, "0.0.0.0", () => {
-    console.log("🚀 Server running on port", port);
-  });
+  await app.listen(process.env.PORT || 3000, "0.0.0.0");
 }
 
 bootstrap();
