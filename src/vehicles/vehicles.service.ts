@@ -18,6 +18,61 @@ export class VehiclesService {
     return BigInt(s);
   }
 
+  private tenantIdOf(user: any) {
+    return user?.tenantId ?? null;
+  }
+
+  private async ensureCatalogCompatibility(
+    tenantId: string | number | bigint | null,
+    brandId?: string | null,
+    modelId?: string | null,
+  ) {
+    const tenant = tenantId != null ? BigInt(String(tenantId)) : null;
+    let resolvedBrandId = brandId ? BigInt(String(brandId)) : null;
+    let resolvedModelId = modelId ? BigInt(String(modelId)) : null;
+
+    let brand: any = null;
+    let model: any = null;
+
+    if (resolvedModelId) {
+      model = await this.prisma.model.findUnique({
+        where: { id: resolvedModelId },
+        include: { brand: true },
+      });
+      if (!model) throw new NotFoundException("Model not found");
+
+      if (resolvedBrandId && String(model.brandId) !== String(resolvedBrandId)) {
+        throw new ForbiddenException("Model does not belong to the selected brand");
+      }
+
+      resolvedBrandId = model.brandId;
+    }
+
+    if (resolvedBrandId) {
+      brand = await this.prisma.brand.findUnique({
+        where: { id: resolvedBrandId },
+      });
+      if (!brand) throw new NotFoundException("Brand not found");
+    }
+
+    if (brand?.tenantId !== null && brand?.tenantId !== undefined) {
+      if (tenant !== null && String(brand.tenantId) !== String(tenant)) {
+        throw new ForbiddenException("Brand does not belong to the selected tenant");
+      }
+    }
+
+    if (model?.tenantId !== null && model?.tenantId !== undefined) {
+      if (tenant !== null && String(model.tenantId) !== String(tenant)) {
+        throw new ForbiddenException("Model does not belong to the selected tenant");
+      }
+    }
+
+    return {
+      brandId: resolvedBrandId,
+      modelId: resolvedModelId,
+    };
+  }
+
   private async setOwnersInternal(vehicleId: bigint, customers?: string[]) {
     await this.prisma.customervehicle.deleteMany({ where: { vehicleId } });
     const ids = (customers ?? []).map((x) => BigInt(String(x)));
@@ -77,14 +132,20 @@ export class VehiclesService {
     let tenantId = dto.tenantId ?? null;
 
     if (role === "TENANT_ADMIN" || role === "TENANT_USER") {
-      tenantId = user?.tenantId ?? null;
+      tenantId = this.tenantIdOf(user);
     }
+
+    const catalog = await this.ensureCatalogCompatibility(
+      tenantId,
+      dto.brandId ?? null,
+      dto.modelId ?? null,
+    );
 
     const created = await this.prisma.vehicle.create({
       data: {
         plate: dto.plate,
-        brandId: this.toBigIntOrNull(dto.brandId),
-        modelId: this.toBigIntOrNull(dto.modelId),
+        brandId: catalog.brandId,
+        modelId: catalog.modelId,
         year: dto.year ?? null,
         imageUrl: dto.imageUrl ?? null,
         tenantId: tenantId ? BigInt(String(tenantId)) : null,
@@ -104,6 +165,7 @@ export class VehiclesService {
     if (!target) throw new NotFoundException("Vehicle not found");
 
     const role = (user?.role ?? "").toString();
+    let nextTenantId = target.tenantId;
 
     if (role === "TENANT_ADMIN" || role === "TENANT_USER") {
       const tenantIdReq = user?.tenantId ?? null;
@@ -113,19 +175,30 @@ export class VehiclesService {
       }
 
       dto.tenantId = tenantIdTarget;
+      nextTenantId = tenantIdTarget;
+    } else if (dto.tenantId !== undefined) {
+      nextTenantId = dto.tenantId ? BigInt(String(dto.tenantId)) : null;
     }
+
+    const nextBrandId = dto.brandId !== undefined ? dto.brandId : undefined;
+    const nextModelId = dto.modelId !== undefined ? dto.modelId : undefined;
+    const catalog = await this.ensureCatalogCompatibility(
+      nextTenantId,
+      nextBrandId ?? null,
+      nextModelId ?? null,
+    );
 
     await this.prisma.vehicle.update({
       where: { id: vid },
       data: {
         plate: dto.plate !== undefined ? dto.plate : undefined,
         brandId:
-          dto.brandId !== undefined
-            ? this.toBigIntOrNull(dto.brandId)
+          dto.brandId !== undefined || dto.modelId !== undefined
+            ? catalog.brandId
             : undefined,
         modelId:
-          dto.modelId !== undefined
-            ? this.toBigIntOrNull(dto.modelId)
+          dto.brandId !== undefined || dto.modelId !== undefined
+            ? catalog.modelId
             : undefined,
         year: dto.year !== undefined ? dto.year : undefined,
         imageUrl: dto.imageUrl !== undefined ? dto.imageUrl : undefined,

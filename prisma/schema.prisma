@@ -38,6 +38,39 @@ model tenant {
   FinancialTransaction FinancialTransaction[]
 }
 
+model contactLead {
+  id          BigInt              @id @default(autoincrement())
+  name        String
+  companyName String?
+  email       String
+  phone       String?
+  message     String              @db.Text
+  sourceUrl   String?             @db.VarChar(512)
+  sourcePage  String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmContent  String?
+  utmTerm     String?
+  status      contact_lead_status @default(NEW)
+  score       Int                 @default(0)
+  aiStatus    contact_lead_status?
+  aiConfidence Float?
+  aiReason    String?             @db.Text
+  classificationSource String      @default("RULE")
+  classificationModel  String?
+  notes       String?             @db.Text
+  ipAddress   String?             @db.VarChar(64)
+  userAgent   String?             @db.VarChar(255)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([status, createdAt])
+  @@index([score])
+  @@index([email])
+  @@map("contact_leads")
+}
+
 model brand {
   id      BigInt    @id @default(autoincrement())
   name    String
@@ -371,4 +404,12 @@ model FinancialTransaction {
 enum transaction_type {
   CREDIT
   DEBIT
+}
+
+enum contact_lead_status {
+  NEW
+  CONTACTED
+  QUALIFIED
+  DISQUALIFIED
+  SPAM
 }
