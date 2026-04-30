@@ -5,6 +5,12 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ListFinancialEntryDto } from "./dto/list-financial-entry.dto";
+import { CreateFinancialEntryDto } from "./dto/create-financial-entry.dto";
+import { UpdateFinancialEntryDto } from "./dto/update-financial-entry.dto";
+import {
+  normalizeFinancialEntryStatus,
+  normalizeFinancialEntryType,
+} from "./dto/financial-entry-input";
 
 @Injectable()
 export class FinancialEntriesService {
@@ -12,6 +18,12 @@ export class FinancialEntriesService {
 
   private toBigInt(id?: any) {
     if (!id) return null;
+    return BigInt(String(id));
+  }
+
+  private toBigIntOrNull(id?: string | number | bigint | null) {
+    if (id === null || id === undefined || id === "") return null;
+    if (typeof id === "bigint") return id;
     return BigInt(String(id));
   }
 
@@ -28,6 +40,12 @@ export class FinancialEntriesService {
   async findAll(user: any, query: ListFinancialEntryDto) {
     const {
       q,
+      customerId,
+      vehicleId,
+      categoryId,
+      accountId,
+      paymentMethodId,
+      workOrderId,
       type,
       status,
       startDate,
@@ -36,36 +54,138 @@ export class FinancialEntriesService {
       pageSize = 10,
     } = query;
 
+    const normalizedType = type
+      ? normalizeFinancialEntryType(type)
+      : undefined;
+    const normalizedStatus = status
+      ? normalizeFinancialEntryStatus(status)
+      : undefined;
+
     const where: any = {};
+    const and: any[] = [];
+    const workorderWhere: any = {};
 
-    if (q) {
-      where.description = {
-        contains: q,
-      };
+    if (q?.trim()) {
+      const search = q.trim();
+
+      where.OR = [
+        {
+          description: {
+            contains: search,
+            mode: "insensitive",
+          },
+        },
+        {
+          category: {
+            name: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          paymentMethod: {
+            name: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          account: {
+            name: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          workorder: {
+            number: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          workorder: {
+            customer: {
+              name: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+          },
+        },
+        {
+          workorder: {
+            vehicle: {
+              plate: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+          },
+        },
+      ];
     }
 
-    if (type) {
-      where.type = type;
+    if (normalizedType) {
+      where.type = normalizedType;
     }
 
-    if (status === "OPEN") {
-      where.paidAt = null;
+    if (normalizedStatus === "OPEN") {
+      and.push({ paidAt: null });
     }
 
-    if (status === "PAID") {
-      where.paidAt = { not: null };
+    if (normalizedStatus === "PAID") {
+      and.push({ paidAt: { not: null } });
     }
 
-    if (status === "OVERDUE") {
-      where.paidAt = null;
-      where.dueDate = { lt: new Date() };
+    if (normalizedStatus === "OVERDUE") {
+      and.push({ paidAt: null });
+      and.push({ dueDate: { lt: new Date() } });
     }
 
     if (startDate || endDate) {
-      where.dueDate = {};
+      const dueDate: any = {};
 
-      if (startDate) where.dueDate.gte = new Date(startDate);
-      if (endDate) where.dueDate.lte = new Date(endDate);
+      if (startDate) dueDate.gte = new Date(startDate);
+      if (endDate) dueDate.lte = new Date(endDate);
+
+      and.push({ dueDate });
+    }
+
+    if (customerId) {
+      workorderWhere.customerId = this.toBigInt(customerId);
+    }
+
+    if (vehicleId) {
+      workorderWhere.vehicleId = this.toBigInt(vehicleId);
+    }
+
+    if (workOrderId) {
+      workorderWhere.id = this.toBigInt(workOrderId);
+    }
+
+    if (Object.keys(workorderWhere).length > 0) {
+      where.workorder = workorderWhere;
+    }
+
+    if (categoryId) {
+      where.categoryId = this.toBigInt(categoryId);
+    }
+
+    if (accountId) {
+      where.accountId = this.toBigInt(accountId);
+    }
+
+    if (paymentMethodId) {
+      where.paymentMethodId = this.toBigInt(paymentMethodId);
+    }
+
+    if (and.length > 0) {
+      where.AND = and;
     }
 
     if (user?.role !== "SYSTEM_ADMIN") {
@@ -81,8 +201,15 @@ export class FinancialEntriesService {
         take: pageSize,
         orderBy: { dueDate: "desc" },
         include: {
+          category: true,
           paymentMethod: true,
           account: true,
+          workorder: {
+            include: {
+              customer: true,
+              vehicle: true,
+            },
+          },
         },
       }),
       this.prisma.financialEntry.count({ where }),
@@ -99,6 +226,17 @@ export class FinancialEntriesService {
   async findOne(user: any, id: bigint) {
     const entry = await this.prisma.financialEntry.findUnique({
       where: { id },
+      include: {
+        category: true,
+        paymentMethod: true,
+        account: true,
+        workorder: {
+          include: {
+            customer: true,
+            vehicle: true,
+          },
+        },
+      },
     });
 
     if (!entry) throw new NotFoundException("Entry not found");
@@ -108,10 +246,10 @@ export class FinancialEntriesService {
     return entry;
   }
 
-  async create(user: any, data: any) {
+  async create(user: any, data: CreateFinancialEntryDto) {
     const tenantId =
       user?.role === "SYSTEM_ADMIN"
-        ? this.toBigInt(data.tenantId)
+        ? this.toBigIntOrNull(data.tenantId)
         : this.toBigInt(user?.tenantId);
 
     return this.prisma.financialEntry.create({
@@ -120,6 +258,11 @@ export class FinancialEntriesService {
         description: data.description ?? null,
         amount: data.amount,
         dueDate: new Date(data.dueDate),
+        paidAt: data.paidAt ? new Date(data.paidAt) : null,
+        workOrderId: data.workOrderId
+          ? this.toBigInt(data.workOrderId)
+          : null,
+        categoryId: data.categoryId ? this.toBigInt(data.categoryId) : null,
 
         paymentMethodId: data.paymentMethodId
           ? this.toBigInt(data.paymentMethodId)
@@ -132,16 +275,39 @@ export class FinancialEntriesService {
     });
   }
 
-  async update(user: any, id: bigint, data: any) {
+  async update(user: any, id: bigint, data: UpdateFinancialEntryDto) {
     const existing = await this.findOne(user, id);
 
     return this.prisma.financialEntry.update({
       where: { id },
       data: {
         type: data.type ?? existing.type,
-        description: data.description ?? existing.description,
+        description:
+          data.description === undefined ? existing.description : data.description,
         amount: data.amount ?? existing.amount,
         dueDate: data.dueDate ? new Date(data.dueDate) : existing.dueDate,
+        paidAt:
+          data.paidAt === undefined
+            ? existing.paidAt
+            : data.paidAt
+              ? new Date(data.paidAt)
+              : null,
+        workOrderId:
+          data.workOrderId === undefined
+            ? existing.workOrderId
+            : this.toBigIntOrNull(data.workOrderId),
+        categoryId:
+          data.categoryId === undefined
+            ? existing.categoryId
+            : this.toBigIntOrNull(data.categoryId),
+        paymentMethodId:
+          data.paymentMethodId === undefined
+            ? existing.paymentMethodId
+            : this.toBigIntOrNull(data.paymentMethodId),
+        accountId:
+          data.accountId === undefined
+            ? existing.accountId
+            : this.toBigIntOrNull(data.accountId),
       },
     });
   }
@@ -166,6 +332,13 @@ export class FinancialEntriesService {
 
       if (!account) {
         throw new NotFoundException("Account not found");
+      }
+
+      if (
+        user?.role !== "SYSTEM_ADMIN" &&
+        String(account.tenantId ?? null) !== String(user?.tenantId ?? null)
+      ) {
+        throw new ForbiddenException("Not allowed");
       }
 
       const newBalance =
@@ -193,6 +366,10 @@ export class FinancialEntriesService {
         data: {
           paidAt: new Date(),
           accountId: accountId,
+          categoryId:
+            data.categoryId !== undefined
+              ? this.toBigIntOrNull(data.categoryId)
+              : existing.categoryId,
           paymentMethodId: data.paymentMethodId
             ? this.toBigInt(data.paymentMethodId)
             : null,

@@ -34,6 +34,7 @@ model tenant {
 
   paymentMethods       PaymentMethod[]
   financialAccounts    FinancialAccount[]
+  financialCategories  FinancialCategory[]
   financialEntries     FinancialEntry[]
   FinancialTransaction FinancialTransaction[]
 }
@@ -346,6 +347,21 @@ model FinancialAccount {
   @@index([tenantId])
 }
 
+model FinancialCategory {
+  id        BigInt   @id @default(autoincrement())
+  name      String
+  color     String?  @db.VarChar(32)
+  icon      String?  @db.VarChar(64)
+  active    Boolean  @default(true)
+  tenantId  BigInt?
+  tenant    tenant?  @relation(fields: [tenantId], references: [id])
+
+  financialEntries FinancialEntry[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
 enum account_type {
   CASHBOX
   BANK
@@ -363,6 +379,9 @@ model FinancialEntry {
   workOrderId BigInt?
   workorder   workorder? @relation(fields: [workOrderId], references: [id])
 
+  categoryId BigInt?
+  category   FinancialCategory? @relation(fields: [categoryId], references: [id])
+
   paymentMethodId BigInt?
   paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
 
@@ -375,6 +394,11 @@ model FinancialEntry {
   transactions FinancialTransaction[]
 
   @@index([tenantId])
+  @@index([categoryId])
+  @@index([accountId])
+  @@index([paymentMethodId])
+  @@index([workOrderId])
+  @@index([dueDate])
 }
 
 enum entry_type {

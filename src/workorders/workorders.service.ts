@@ -411,6 +411,7 @@ export class WorkordersService {
         dueDate: new Date(),
         paidAt: new Date(),
         workOrderId: id,
+        categoryId: this.toBigIntOrNull(data.categoryId),
         paymentMethodId,
         tenantId,
       },

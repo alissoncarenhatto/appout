@@ -8,6 +8,8 @@ import { PaymentMethodsController } from "./payment-methods/payment-methods.cont
 import { PaymentMethodsService } from "./payment-methods/payment-methods.service";
 import { FinancialDashboardService } from "./dashboard/financial-dashboard.service";
 import { FinancialDashboardController } from "./dashboard/financial-dashboard.controller";
+import { FinancialCategoriesController } from "./categories/financial-categories.controller";
+import { FinancialCategoriesService } from "./categories/financial-categories.service";
 
 @Module({
   controllers: [
@@ -15,6 +17,7 @@ import { FinancialDashboardController } from "./dashboard/financial-dashboard.co
     FinancialEntriesController,
     PaymentMethodsController,
     FinancialDashboardController,
+    FinancialCategoriesController,
   ],
   providers: [
     FinancialAccountsService,
@@ -22,6 +25,7 @@ import { FinancialDashboardController } from "./dashboard/financial-dashboard.co
     PaymentMethodsService,
     PrismaService,
     FinancialDashboardService,
+    FinancialCategoriesService,
   ],
 })
 export class FinancialModule {}

@@ -13,6 +13,8 @@ import {
 import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
 import { FinancialEntriesService } from "./financial-entries.service";
 import { ListFinancialEntryDto } from "./dto/list-financial-entry.dto";
+import { CreateFinancialEntryDto } from "./dto/create-financial-entry.dto";
+import { UpdateFinancialEntryDto } from "./dto/update-financial-entry.dto";
 
 @Controller("financial-entries")
 @UseGuards(JwtAuthGuard)
@@ -30,12 +32,16 @@ export class FinancialEntriesController {
   }
 
   @Post()
-  create(@Req() req: any, @Body() body: any) {
+  create(@Req() req: any, @Body() body: CreateFinancialEntryDto) {
     return this.service.create(req.user, body);
   }
 
   @Patch(":id")
-  update(@Req() req: any, @Param("id") id: string, @Body() body: any) {
+  update(
+    @Req() req: any,
+    @Param("id") id: string,
+    @Body() body: UpdateFinancialEntryDto,
+  ) {
     return this.service.update(req.user, BigInt(id), body);
   }
 

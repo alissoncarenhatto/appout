@@ -8,41 +8,41 @@ import {
 import { Transform } from "class-transformer";
 import { normalizeFinancialEntryType } from "./financial-entry-input";
 
-export class CreateFinancialEntryDto {
+export class UpdateFinancialEntryDto {
+  @IsOptional()
   @Transform(({ value }) => normalizeFinancialEntryType(value))
   @IsIn(["RECEIVABLE", "PAYABLE", "CREDIT", "DEBIT"])
-  type!: "RECEIVABLE" | "PAYABLE";
+  type?: "RECEIVABLE" | "PAYABLE";
 
   @IsOptional()
   @IsString()
-  description?: string;
+  description?: string | null;
 
+  @IsOptional()
   @IsNumber()
-  amount!: number;
-
-  @IsDateString()
-  dueDate!: string;
+  amount?: number;
 
   @IsOptional()
   @IsDateString()
-  paidAt?: string;
+  dueDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  paidAt?: string | null;
 
   @IsOptional()
   @IsString()
-  workOrderId?: string;
+  workOrderId?: string | null;
 
   @IsOptional()
   @IsString()
-  categoryId?: string;
+  categoryId?: string | null;
 
   @IsOptional()
   @IsString()
-  paymentMethodId?: string;
+  paymentMethodId?: string | null;
 
   @IsOptional()
   @IsString()
-  accountId?: string;
-
-  @IsOptional()
-  tenantId?: string | number | null;
+  accountId?: string | null;
 }
