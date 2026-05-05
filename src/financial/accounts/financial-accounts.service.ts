@@ -5,6 +5,11 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 
+type AccountWithDerivedBalance = {
+  currentBalance: number;
+  movementBalance: number;
+};
+
 @Injectable()
 export class FinancialAccountsService {
   constructor(private prisma: PrismaService) {}
@@ -22,6 +27,55 @@ export class FinancialAccountsService {
     if (String(userTenant) !== String(tenantId ?? null)) {
       throw new ForbiddenException("Not allowed");
     }
+  }
+
+  private toNumber(value: unknown) {
+    return Number(value ?? 0);
+  }
+
+  private async attachDerivedBalances(user: any, items: any[]) {
+    if (items.length === 0) {
+      return items as Array<any & AccountWithDerivedBalance>;
+    }
+
+    const accountIds = items.map((item) => item.id);
+
+    const where: any = {
+      accountId: { in: accountIds },
+    };
+
+    if (user?.role !== "SYSTEM_ADMIN") {
+      where.tenantId = this.toBigInt(user?.tenantId);
+    }
+
+    const entryTotals = await this.prisma.financialEntry.groupBy({
+      by: ["accountId", "type"],
+      where,
+      _sum: { amount: true },
+    });
+
+    const movementByAccount = new Map<string, number>();
+
+    for (const row of entryTotals) {
+      const accountId = String(row.accountId);
+      const amount = this.toNumber(row._sum.amount);
+      const signedAmount = row.type === "RECEIVABLE" ? amount : -amount;
+
+      movementByAccount.set(
+        accountId,
+        (movementByAccount.get(accountId) ?? 0) + signedAmount,
+      );
+    }
+
+    return items.map((item) => {
+      const movementBalance = movementByAccount.get(String(item.id)) ?? 0;
+
+      return {
+        ...item,
+        movementBalance,
+        currentBalance: this.toNumber(item.balance) + movementBalance,
+      };
+    }) as Array<any & AccountWithDerivedBalance>;
   }
 
   async findAll(user: any, query: any) {
@@ -52,8 +106,10 @@ export class FinancialAccountsService {
       orderBy: { name: "asc" },
     });
 
+    const itemsWithBalance = await this.attachDerivedBalances(user, items);
+
     return {
-      items,
+      items: itemsWithBalance,
       total,
     };
   }
@@ -65,7 +121,9 @@ export class FinancialAccountsService {
     if (!acc) throw new NotFoundException("Account not found");
 
     this.checkTenant(user, acc.tenantId);
-    return acc;
+
+    const [withBalance] = await this.attachDerivedBalances(user, [acc]);
+    return withBalance;
   }
 
   async create(user: any, data: any) {
