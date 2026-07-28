@@ -23,6 +23,8 @@ import { DashboardModule } from "./dashboard/dashboard.module";
 import { I18nModule } from "./i18n/i18n.module";
 import { StorageModule } from "./storage/storage.module";
 import { ContactLeadsModule } from "./contact-leads/contact-leads.module";
+import { CrmModule } from "./crm/crm.module";
+import { EstimatesModule } from "./estimates/estimates.module";
 
 @Module({
   imports: [
@@ -46,6 +48,8 @@ import { ContactLeadsModule } from "./contact-leads/contact-leads.module";
     FinancialModule,
     DashboardModule,
     ContactLeadsModule,
+    CrmModule,
+    EstimatesModule,
 
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), "uploads"),

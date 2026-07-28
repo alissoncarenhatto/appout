@@ -1,8 +1,8 @@
 # AppOut – Backend (NestJS + Prisma)
 
-API do AppOut para **autenticação**, **clientes**, **veículos**, **peças**, **catálogo de serviços**, **ordens de serviço** e **agenda**.
+API do AppOut para **autenticação**, **clientes**, **veículos**, **peças**, **catálogo de serviços**, **ordens de serviço**, **agenda** e **financeiro**.
 
-> Stack: **NestJS**, **Prisma**, **PostgreSQL** (ou outro banco compatível com Prisma), **JWT**.
+> Stack: **NestJS**, **Prisma**, **MySQL**, **JWT**.
 
 ---
 
@@ -23,8 +23,8 @@ Crie um arquivo `.env` na raiz do backend:
 # Porta do HTTP server
 PORT=3000
 
-# Prisma (exemplo com PostgreSQL)
-DATABASE_URL="postgresql://user:password@localhost:5432/appout?schema=public"
+# Prisma (exemplo com MySQL)
+DATABASE_URL="mysql://user:password@localhost:3306/appout"
 
 # JWT
 JWT_SECRET="uma_chave_secreta_bem_forte"
@@ -52,3 +52,50 @@ npm run start:dev
 # build e produção local
 npm run build
 npm run start:prod
+
+---
+
+## Deploy na Railway
+
+Para produção na Railway, não use `mysql.railway.internal` no seu computador local. Esse host só funciona dentro da rede privada da Railway.
+
+### Variáveis de ambiente
+
+No serviço da aplicação, configure `DATABASE_URL` usando a URL do banco do próprio projeto. Se o banco e a API estiverem no mesmo projeto Railway, use a conexão interna indicada pelo serviço MySQL. Se for rodar o comando fora da Railway, use a URL pública/tcp proxy do banco.
+
+### Migrações
+
+O comando certo para produção é:
+
+```bash
+npm run prisma:migrate:deploy
+```
+
+Na Railway, a forma mais segura é configurar isso como **Pre-Deploy Command** no serviço da API:
+
+```bash
+npm run prisma:migrate:deploy
+```
+
+Se quiser executar manualmente dentro do ambiente Railway, use o shell da Railway:
+
+```bash
+railway shell
+npm run prisma:migrate:deploy
+```
+
+Se precisar rodar localmente com as variáveis do serviço Railway, use:
+
+```bash
+railway run npm run prisma:migrate:deploy
+```
+
+> Dica: no serviço MySQL da Railway, use a variável `MYSQL_URL` como base para o `DATABASE_URL` da API.
+
+### Start command
+
+O backend inicia com:
+
+```bash
+npm run start:prod
+```

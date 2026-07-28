@@ -34,11 +34,18 @@ export class WorkorderPdfService {
   private readonly contentBottom = this.footerTop - 16;
   private readonly pageNumberY = this.pageHeight - this.margin - 12;
 
-  async generate(workorder: any, user?: any): Promise<string> {
-    const uploadsDir = path.join(process.cwd(), "uploads", "workorders");
+  async generate(
+    workorder: any,
+    user?: any,
+    documentType: "workorder" | "estimate" = "workorder",
+  ): Promise<string> {
+    const isEstimate = documentType === "estimate";
+    const storageFolder = isEstimate ? "estimates" : "workorders";
+    const filenamePrefix = isEstimate ? "estimate" : "workorder";
+    const uploadsDir = path.join(process.cwd(), "uploads", storageFolder);
     fs.mkdirSync(uploadsDir, { recursive: true });
 
-    const filename = `workorder-${workorder.id}.pdf`;
+    const filename = `${filenamePrefix}-${workorder.id}.pdf`;
     const filepath = path.join(uploadsDir, filename);
     const logoSource = await this.resolvePdfAssetSource(workorder.tenant?.logoUrl);
 
@@ -54,16 +61,23 @@ export class WorkorderPdfService {
     });
     doc.pipe(writeStream);
 
-    const services = (workorder.workorderservice ?? []).map((item: any) => ({
-      description: item.servicecatalog?.name ?? "Servico",
-      details: item.servicecatalog?.description ?? null,
+    const serviceSource = isEstimate
+      ? (workorder.items ?? []).filter((item: any) => item.type === "SERVICE")
+      : (workorder.workorderservice ?? []);
+    const partSource = isEstimate
+      ? (workorder.items ?? []).filter((item: any) => item.type === "PART")
+      : (workorder.workorderpart ?? []);
+
+    const services = serviceSource.map((item: any) => ({
+      description: item.description ?? item.service?.name ?? item.servicecatalog?.name ?? "Servico",
+      details: item.service?.description ?? item.servicecatalog?.description ?? null,
       qty: Number(item.qty ?? 0),
       unitPrice: Number(item.unitPrice ?? 0),
       discount: Number(item.discount ?? 0),
     }));
 
-    const parts = (workorder.workorderpart ?? []).map((item: any) => ({
-      description: item.part?.name ?? "Peca",
+    const parts = partSource.map((item: any) => ({
+      description: item.description ?? item.part?.name ?? "Peca",
       details: item.part?.description ?? null,
       qty: Number(item.qty ?? 0),
       unitPrice: Number(item.unitPrice ?? 0),
@@ -81,9 +95,9 @@ export class WorkorderPdfService {
     );
 
     this.drawBrandHeader(doc, workorder, locale, logoSource);
-    this.drawDocumentBand(doc, workorder, locale);
+    this.drawDocumentBand(doc, workorder, locale, documentType);
     this.drawPartyRow(doc, workorder, locale);
-    this.drawBasicInfo(doc, workorder, locale);
+    this.drawBasicInfo(doc, workorder, locale, documentType);
     this.drawTableSection(
       doc,
       this.i18n.tPdf("serviceItems", locale),
@@ -116,14 +130,14 @@ export class WorkorderPdfService {
 
     if (this.storageService.isProduction()) {
       return this.storageService.uploadLocalFile(
-        "workorders",
+        storageFolder,
         filepath,
         filename,
         "application/pdf",
       );
     }
 
-    return `/uploads/workorders/${filename}`;
+    return `/uploads/${storageFolder}/${filename}`;
   }
 
   private drawBrandHeader(
@@ -180,9 +194,13 @@ export class WorkorderPdfService {
     doc: PDFKit.PDFDocument,
     workorder: any,
     locale: string,
+    documentType: "workorder" | "estimate",
   ) {
     const top = doc.y;
-    const label = `${this.i18n.tPdf("serviceNote", locale)} ${String(workorder.number ?? workorder.id)}`;
+    const documentLabel = documentType === "estimate"
+      ? this.i18n.tPdf("estimate", locale)
+      : this.i18n.tPdf("serviceNote", locale);
+    const label = `${documentLabel} ${String(workorder.number ?? workorder.id)}`;
 
     doc.rect(this.margin, top, this.contentWidth, 22).fill(this.dark);
     doc.fillColor("#FFFFFF").font("Helvetica-Bold").fontSize(11);
@@ -251,6 +269,7 @@ export class WorkorderPdfService {
     doc: PDFKit.PDFDocument,
     workorder: any,
     locale: string,
+    documentType: "workorder" | "estimate",
   ) {
     this.drawSectionHeader(doc, this.i18n.tPdf("basicInformation", locale));
 

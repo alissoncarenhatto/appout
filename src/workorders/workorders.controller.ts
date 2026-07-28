@@ -78,7 +78,7 @@ export class WorkordersController {
 
   @Get("range")
   findByRange(
-    @Req() req,
+    @Req() req: Request,
     @Query("from") from?: string,
     @Query("to") to?: string,
   ) {

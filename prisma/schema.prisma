@@ -37,6 +37,14 @@ model tenant {
   financialCategories  FinancialCategory[]
   financialEntries     FinancialEntry[]
   FinancialTransaction FinancialTransaction[]
+  contactLeads         contactLead[]
+  crmPipelines         CrmPipeline[]
+  crmStages            CrmPipelineStage[]
+  crmDeals             CrmDeal[]
+  crmActivities        CrmActivity[]
+  crmTasks             CrmTask[]
+  estimates            Estimate[]
+  estimateItems        EstimateItem[]
 }
 
 model contactLead {
@@ -65,10 +73,16 @@ model contactLead {
   userAgent   String?             @db.VarChar(255)
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
+  tenantId    BigInt?
+  tenant      tenant?             @relation(fields: [tenantId], references: [id])
+  crmDeals    CrmDeal[]
+  crmActivities CrmActivity[]
+  crmTasks    CrmTask[]
 
   @@index([status, createdAt])
   @@index([score])
   @@index([email])
+  @@index([tenantId])
   @@map("contact_leads")
 }
 
@@ -94,6 +108,10 @@ model customer {
   notes           String?
   customervehicle customervehicle[]
   workorder       workorder[]
+  crmDeals        CrmDeal[]
+  crmActivities   CrmActivity[]
+  crmTasks        CrmTask[]
+  estimates       Estimate[]
 
   tenantId BigInt?
   tenant   tenant? @relation(fields: [tenantId], references: [id])
@@ -125,6 +143,7 @@ model part {
   stockQty      Int             @default(0)
   active        Boolean         @default(true)
   workorderpart workorderpart[]
+  estimateItems EstimateItem[]
 
   tenantId BigInt?
   tenant   tenant? @relation(fields: [tenantId], references: [id])
@@ -155,6 +174,7 @@ model servicecatalog {
   active             Boolean            @default(true)
   description        String?
   workorderservice   workorderservice[]
+  estimateItems      EstimateItem[]
 
   tenantId BigInt?
   tenant   tenant? @relation(fields: [tenantId], references: [id])
@@ -177,6 +197,9 @@ model user {
   // FK para tabela de roles (Role)
   roleId Int?
   role   Role? @relation(fields: [roleId], references: [id])
+  crmDeals      CrmDeal[]
+  crmActivities CrmActivity[]
+  crmTasks      CrmTask[]
 
   @@index([tenantId])
 }
@@ -197,6 +220,7 @@ model vehicle {
 
   customervehicle customervehicle[]
   workorder       workorder[]
+  estimates       Estimate[]
 
   imageUrl String? @db.VarChar(512)
 
@@ -223,7 +247,7 @@ model workorder {
   id               BigInt             @id @default(autoincrement())
   number           String?
   customerId       BigInt
-  vehicleId        BigInt
+  vehicleId        BigInt?
   status           workorder_status   @default(PENDING)
   scheduledAt      DateTime?
   startedAt        DateTime?
@@ -231,7 +255,7 @@ model workorder {
   notes            String?
   payment          payment[]
   customer         customer           @relation(fields: [customerId], references: [id])
-  vehicle          vehicle            @relation(fields: [vehicleId], references: [id])
+  vehicle          vehicle?           @relation(fields: [vehicleId], references: [id])
   workorderpart    workorderpart[]
   workorderservice workorderservice[]
   financialEntries FinancialEntry[]
@@ -243,6 +267,65 @@ model workorder {
   @@index([customerId])
   @@index([vehicleId])
   @@index([tenantId])
+}
+
+model Estimate {
+  id          BigInt          @id @default(autoincrement())
+  number      String?
+  tenantId    BigInt?
+  customerId  BigInt
+  vehicleId   BigInt?
+  status      estimate_status @default(DRAFT)
+  title       String?
+  notes       String?         @db.Text
+  subtotal    Decimal         @default(0)
+  discount    Decimal         @default(0)
+  total       Decimal         @default(0)
+  validUntil  DateTime?
+  sentAt      DateTime?
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  tenant   tenant?  @relation(fields: [tenantId], references: [id])
+  customer customer @relation(fields: [customerId], references: [id])
+  vehicle  vehicle? @relation(fields: [vehicleId], references: [id])
+  items    EstimateItem[]
+
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([vehicleId])
+  @@index([status])
+  @@index([sentAt])
+  @@map("estimates")
+}
+
+model EstimateItem {
+  id          BigInt             @id @default(autoincrement())
+  estimateId  BigInt
+  tenantId    BigInt?
+  type        estimate_item_type
+  serviceId   BigInt?
+  partId      BigInt?
+  description String
+  qty         Decimal            @default(1)
+  unitPrice   Decimal            @default(0)
+  unitCost    Decimal            @default(0)
+  discount    Decimal            @default(0)
+  total       Decimal            @default(0)
+  createdAt   DateTime           @default(now())
+
+  estimate Estimate        @relation(fields: [estimateId], references: [id])
+  tenant   tenant?         @relation(fields: [tenantId], references: [id])
+  service  servicecatalog? @relation(fields: [serviceId], references: [id])
+  part     part?           @relation(fields: [partId], references: [id])
+
+  @@index([estimateId])
+  @@index([tenantId])
+  @@index([serviceId])
+  @@index([partId])
+  @@map("estimate_items")
 }
 
 model workorderpart {
@@ -290,11 +373,163 @@ model Role {
   users user[]
 }
 
+model CrmPipeline {
+  id        BigInt   @id @default(autoincrement())
+  tenantId  BigInt?
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant tenant?            @relation(fields: [tenantId], references: [id])
+  stages CrmPipelineStage[]
+  deals  CrmDeal[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("crm_pipelines")
+}
+
+model CrmPipelineStage {
+  id         BigInt   @id @default(autoincrement())
+  tenantId   BigInt?
+  pipelineId BigInt
+  name       String
+  order      Int      @default(0)
+  color      String?  @db.VarChar(32)
+  isWon      Boolean  @default(false)
+  isLost     Boolean  @default(false)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant   tenant?     @relation(fields: [tenantId], references: [id])
+  pipeline CrmPipeline @relation(fields: [pipelineId], references: [id])
+  deals    CrmDeal[]
+
+  @@index([tenantId])
+  @@index([pipelineId])
+  @@map("crm_pipeline_stages")
+}
+
+model CrmDeal {
+  id              BigInt          @id @default(autoincrement())
+  tenantId        BigInt?
+  pipelineId      BigInt?
+  stageId         BigInt?
+  customerId      BigInt?
+  leadId          BigInt?
+  ownerUserId     BigInt?
+  title           String
+  value           Decimal         @default(0)
+  status          crm_deal_status @default(OPEN)
+  source          String?
+  lostReason      String?
+  expectedCloseAt DateTime?
+  closedAt        DateTime?
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  tenant     tenant?           @relation(fields: [tenantId], references: [id])
+  pipeline   CrmPipeline?      @relation(fields: [pipelineId], references: [id])
+  stage      CrmPipelineStage? @relation(fields: [stageId], references: [id])
+  customer   customer?         @relation(fields: [customerId], references: [id])
+  lead       contactLead?      @relation(fields: [leadId], references: [id])
+  owner      user?             @relation(fields: [ownerUserId], references: [id])
+  activities CrmActivity[]
+  tasks      CrmTask[]
+
+  @@index([tenantId])
+  @@index([pipelineId])
+  @@index([stageId])
+  @@index([customerId])
+  @@index([leadId])
+  @@index([ownerUserId])
+  @@index([status])
+  @@map("crm_deals")
+}
+
+model CrmActivity {
+  id          BigInt            @id @default(autoincrement())
+  tenantId    BigInt?
+  dealId      BigInt?
+  customerId  BigInt?
+  leadId      BigInt?
+  userId      BigInt?
+  type        crm_activity_type @default(NOTE)
+  title       String
+  description String?
+  happenedAt  DateTime          @default(now())
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  tenant   tenant?      @relation(fields: [tenantId], references: [id])
+  deal     CrmDeal?     @relation(fields: [dealId], references: [id])
+  customer customer?    @relation(fields: [customerId], references: [id])
+  lead     contactLead? @relation(fields: [leadId], references: [id])
+  user     user?        @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([dealId])
+  @@index([customerId])
+  @@index([leadId])
+  @@index([userId])
+  @@index([happenedAt])
+  @@map("crm_activities")
+}
+
+model CrmTask {
+  id           BigInt          @id @default(autoincrement())
+  tenantId     BigInt?
+  dealId       BigInt?
+  customerId   BigInt?
+  leadId       BigInt?
+  assignedToId BigInt?
+  title        String
+  description  String?
+  status       crm_task_status @default(OPEN)
+  dueAt        DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  tenant     tenant?      @relation(fields: [tenantId], references: [id])
+  deal       CrmDeal?     @relation(fields: [dealId], references: [id])
+  customer   customer?    @relation(fields: [customerId], references: [id])
+  lead       contactLead? @relation(fields: [leadId], references: [id])
+  assignedTo user?        @relation(fields: [assignedToId], references: [id])
+
+  @@index([tenantId])
+  @@index([dealId])
+  @@index([customerId])
+  @@index([leadId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([dueAt])
+  @@map("crm_tasks")
+}
+
 enum workorder_status {
   PENDING
   IN_PROGRESS
   DONE
   CANCELED
+}
+
+enum estimate_status {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELED
+}
+
+enum estimate_item_type {
+  SERVICE
+  PART
+  CUSTOM
 }
 
 enum user_role {
@@ -436,4 +671,29 @@ enum contact_lead_status {
   QUALIFIED
   DISQUALIFIED
   SPAM
+}
+
+enum crm_deal_status {
+  OPEN
+  WON
+  LOST
+  CANCELED
+}
+
+enum crm_activity_type {
+  NOTE
+  CALL
+  WHATSAPP
+  EMAIL
+  MEETING
+  VISIT
+  PROPOSAL
+  FOLLOW_UP
+  OTHER
+}
+
+enum crm_task_status {
+  OPEN
+  DONE
+  CANCELED
 }

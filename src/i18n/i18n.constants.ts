@@ -14,6 +14,10 @@ export const COUNTRY_CONFIG: Record<
 export const PDF_TRANSLATIONS: Record<string, Record<string, string>> = {
   en: {
     automotiveMaintenanceReceipt: "Automotive maintenance receipt",
+    estimate: "Estimate",
+    createdAt: "Created",
+    sentAt: "Sent",
+    validUntil: "Valid until",
     basicInformation: "Basic information",
     brand: "Brand",
     canceled: "Canceled",
@@ -51,6 +55,10 @@ export const PDF_TRANSLATIONS: Record<string, Record<string, string>> = {
   },
   es: {
     automotiveMaintenanceReceipt: "Comprobante de mantenimiento automotriz",
+    estimate: "Presupuesto",
+    createdAt: "Creado",
+    sentAt: "Enviado",
+    validUntil: "Valido hasta",
     basicInformation: "Informacion basica",
     brand: "Marca",
     canceled: "Cancelada",
@@ -88,6 +96,10 @@ export const PDF_TRANSLATIONS: Record<string, Record<string, string>> = {
   },
   pt: {
     automotiveMaintenanceReceipt: "Comprovante de manutencao automotiva",
+    estimate: "Orcamento",
+    createdAt: "Criado em",
+    sentAt: "Enviado em",
+    validUntil: "Valido ate",
     basicInformation: "Informacoes basicas",
     brand: "Marca",
     canceled: "Cancelada",
